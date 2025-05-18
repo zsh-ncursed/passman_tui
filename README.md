@@ -16,6 +16,7 @@ Current version: 1.0.0
 - **Export/import**: encrypted archive of all data and settings (menu: Settings → Export/Import)
 - Unicode support in all fields
 - All data stored in `~/.passman/`
+- **Note field**: up to 50 words, hidden by default, can be shown/hidden (V), copy to clipboard (N)
 
 ## Requirements
 
@@ -89,3 +90,12 @@ On first launch, you will be prompted to create a master password, which will be
 ## License
 
 MIT 
+
+## Changelog
+
+### 1.0.1
+- Поле note теперь до 50 слов, ограничение по словам
+- Note скрыт по умолчанию, отображается по V
+- В details можно копировать note (меню и хоткей N)
+- В EditEntryWindow при редактировании note — отображение/скрытие по V
+- В app.py добавлено копирование note в буфер 
