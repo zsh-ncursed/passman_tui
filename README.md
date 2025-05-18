@@ -94,8 +94,8 @@ MIT
 ## Changelog
 
 ### 1.0.1
-- Поле note теперь до 50 слов, ограничение по словам
-- Note скрыт по умолчанию, отображается по V
-- В details можно копировать note (меню и хоткей N)
-- В EditEntryWindow при редактировании note — отображение/скрытие по V
-- В app.py добавлено копирование note в буфер 
+- Note field now supports up to 50 words (word limit)
+- Note is hidden by default, shown by pressing V
+- In details, note can be copied (menu and hotkey N)
+- In EditEntryWindow, note can be shown/hidden by pressing V
+- In app.py, added copying note to clipboard 
