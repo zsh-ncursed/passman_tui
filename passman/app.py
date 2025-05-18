@@ -2,6 +2,9 @@ import os
 import json
 import curses
 from pathlib import Path
+import zipfile
+import tempfile
+import datetime
 
 from .crypto import CryptoManager
 from .password_generator import PasswordGenerator
@@ -10,6 +13,8 @@ from .ui.main_menu import MainMenu
 from .ui.password_entry import AddEntryWindow, ViewEntriesWindow, EntryDetailsWindow, EditEntryWindow
 from .ui.password_generator import PasswordGeneratorWindow
 from .ui.settings import SettingsWindow
+from . import __version__
+from .ui.base import BaseWindow
 
 
 class PasswordManager:
@@ -167,6 +172,7 @@ class PasswordManager:
         # Launch main menu
         while True:
             main_menu = MainMenu(stdscr)
+            main_menu.header = f"Passman v{__version__}"
             menu_choice = main_menu.display()
             
             # Handle menu item selection
@@ -252,16 +258,88 @@ class PasswordManager:
     def show_settings(self, stdscr):
         """Display settings"""
         settings_window = SettingsWindow(stdscr, self.settings)
-        updated_settings = settings_window.display()
-        
-        if updated_settings:
-            # If encryption algorithm changed, reencrypt data
-            if updated_settings.get('encryption_algorithm') != self.settings.get('encryption_algorithm'):
+        while True:
+            updated_settings = settings_window.display()
+            if updated_settings == "__EXPORT__":
+                self.export_data(stdscr)
+                continue
+            elif updated_settings == "__IMPORT__":
+                self.import_data(stdscr)
+                continue
+            elif updated_settings:
+                # If encryption algorithm changed, reencrypt data
+                if updated_settings.get('encryption_algorithm') != self.settings.get('encryption_algorithm'):
+                    self.settings = updated_settings
+                    self.save_data()
                 self.settings = updated_settings
-                self.save_data()
-            
-            self.settings = updated_settings
-            self.save_settings()
+                self.save_settings()
+                break
+            else:
+                break
+
+    def export_data(self, stdscr):
+        """Экспорт данных и настроек в зашифрованный архив"""
+        # Пути к файлам
+        settings_path = self.storage_dir / f'{self.settings_file}.gpg'
+        data_path = self.storage_dir / f'{self.data_file}.gpg'
+        # Временный zip
+        with tempfile.TemporaryDirectory() as tmpdir:
+            zip_path = Path(tmpdir) / 'passman_export.zip'
+            with zipfile.ZipFile(zip_path, 'w') as zipf:
+                if settings_path.exists():
+                    zipf.write(settings_path, arcname='settings.gpg')
+                if data_path.exists():
+                    zipf.write(data_path, arcname='passwords.gpg')
+            # Читаем zip
+            with open(zip_path, 'rb') as f:
+                zip_bytes = f.read()
+            # Шифруем zip
+            crypto = CryptoManager(password=self.settings['master_password'], algorithm=self.settings.get('encryption_algorithm', 'AES-256'))
+            encrypted = crypto.encrypt_data({'data': zip_bytes.hex()})
+        # Сохраняем в домашнюю директорию
+        now = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        export_path = Path(self.home_dir) / f'passman_export_{now}.pmz'
+        with open(export_path, 'w') as f:
+            f.write(encrypted)
+        window = BaseWindow(stdscr)
+        window.draw_message(f'Экспорт завершён: {export_path}', color_pair=3)
+        window.refresh()
+        window.wait_for_key([10, 13, 27])
+
+    def import_data(self, stdscr):
+        """Импорт данных и настроек из зашифрованного архива"""
+        import zipfile
+        import tempfile
+        from .ui.base import BaseWindow
+        window = BaseWindow(stdscr)
+        window.clear()
+        window.draw_header("Импорт данных")
+        window.draw_footer(["[Enter] - Импорт", "[Esc] - Отмена"])
+        file_path = window.get_string_input("Путь к архиву: ", 3, 2)
+        if not file_path:
+            return
+        password = window.get_string_input("Мастер-пароль: ", 5, 2, mask=True)
+        if not password:
+            return
+        try:
+            with open(file_path, 'r') as f:
+                encrypted = f.read()
+            crypto = CryptoManager(password=password, algorithm=self.settings.get('encryption_algorithm', 'AES-256'))
+            data = crypto.decrypt_data(encrypted)
+            zip_bytes = bytes.fromhex(data['data'])
+            with tempfile.TemporaryDirectory() as tmpdir:
+                zip_path = Path(tmpdir) / 'import.zip'
+                with open(zip_path, 'wb') as fzip:
+                    fzip.write(zip_bytes)
+                with zipfile.ZipFile(zip_path, 'r') as zipf:
+                    for name in zipf.namelist():
+                        out_path = self.storage_dir / name
+                        zipf.extract(name, self.storage_dir)
+            window.draw_message("Импорт завершён! Перезапустите приложение.", color_pair=3)
+        except Exception as e:
+            window.draw_message(f"Ошибка импорта: {e}", color_pair=4)
+        window.refresh()
+        window.wait_for_key([10, 13, 27])
 
 
 def main():

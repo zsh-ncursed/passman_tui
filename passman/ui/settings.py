@@ -1,5 +1,6 @@
 import curses
 from .base import BaseWindow
+from .. import __version__
 
 class SettingsWindow(BaseWindow):
     """Settings window"""
@@ -31,7 +32,7 @@ class SettingsWindow(BaseWindow):
         while True:
             self.clear()
             self.draw_header("Settings")
-            self.draw_footer(["[↑↓] - Navigation", "[Enter] - Select", "[Esc] - Back", "[←→] - Edit"])
+            self.draw_footer([f"Passman v{__version__}", "[↑↓] - Navigation", "[Enter] - Select", "[Esc] - Back", "[←→] - Edit"])
             
             # Draw menu
             self.draw_menu(self.menu_items, self.selected_index)
@@ -52,6 +53,10 @@ class SettingsWindow(BaseWindow):
                         self.draw_message("Master password successfully changed", color_pair=3)
                         self.stdscr.refresh()
                         self.wait_for_key([10, 13, 27])  # Enter or Escape
+                elif self.selected_index == 3:  # Export data
+                    return "__EXPORT__"
+                elif self.selected_index == 4:  # Import data
+                    return "__IMPORT__"
                 elif self.selected_index == 5:  # Save settings
                     return self.settings
                 elif self.selected_index == 6:  # Back

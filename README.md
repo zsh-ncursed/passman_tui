@@ -2,6 +2,10 @@
 
 A secure and convenient application for password management with a text user interface (TUI), supporting data encryption, password generation, clipboard copy, and intuitive navigation.
 
+## Version
+
+Current version: 1.0.0
+
 ## Features
 
 - Add, view, edit, and delete password entries
@@ -9,6 +13,9 @@ A secure and convenient application for password management with a text user int
 - Secure password generation with customizable parameters
 - Copy passwords to clipboard with auto-clear
 - Intuitive TUI interface with arrow key navigation and hotkeys
+- **Export/import**: encrypted archive of all data and settings (menu: Settings → Export/Import)
+- Unicode support in all fields
+- All data stored in `~/.passman/`
 
 ## Requirements
 
@@ -74,9 +81,9 @@ On first launch, you will be prompted to create a master password, which will be
 
 ## Security
 
-- All data is stored encrypted in the `~/.password_manager/` directory
+- All data is stored encrypted in the `~/.passman/` directory
 - Modern encryption algorithms are used (AES-256 by default)
-- Passwords are never stored in plain text
+- Passwords and settings are never stored in plain text
 - The `secrets` module is used for cryptographically secure password generation
 
 ## License
