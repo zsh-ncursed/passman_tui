@@ -1,6 +1,7 @@
 import curses
 from .base import BaseWindow
 from ..password_generator import PasswordGenerator
+import re
 
 class AddEntryWindow(BaseWindow):
     """Add new record window with password"""
@@ -48,8 +49,10 @@ class AddEntryWindow(BaseWindow):
             elif 32 <= key <= 126:  # Printable characters
                 password += chr(key)
 
-        # Ask for note
-        note = self.get_string_input("Note: ", 9, 2)
+        # Ask for note (до 50 слов)
+        note = self.get_string_input("Note (up to 50 words): ", 9, 2, max_length=1000)
+        if note and len(re.findall(r'\S+', note)) > 50:
+            note = ' '.join(re.findall(r'\S+', note)[:50])
         
         return {
             "service_name": service_name,
@@ -131,32 +134,37 @@ class EntryDetailsWindow(BaseWindow):
         self.menu_items = [
             "Copy login",
             "Copy password",
+            "Copy note",
             "Edit record",
             "Delete record",
             "Back"
         ]
         self.selected_index = 0
+        self.show_hidden = False
     
     def display(self):
         """Display record details window"""
         while True:
             self.clear()
             self.draw_header(f"Details: {self.entry['service_name']}")
-            self.draw_footer(["[↑↓] - Navigation", "[Enter] - Select", "[L] - Copy login", "[P] - Copy password", "[Esc] - Back"])
+            self.draw_footer(["[V] - Show/hide"])
             
             # Display record details
             self.stdscr.addstr(2, 2, f"Service: {self.entry['service_name']}")
             self.stdscr.addstr(3, 2, f"Username: {self.entry['username']}")
-            self.stdscr.addstr(4, 2, f"Password: {'*' * len(self.entry['password'])}")
+            if self.show_hidden:
+                self.stdscr.addstr(4, 2, f"Password: {self.entry['password']}")
+            else:
+                self.stdscr.addstr(4, 2, f"Password: {'*' * len(self.entry['password'])}")
             
             # Display note if it exists
             if self.entry.get('note'):
-                note_lines = self.entry['note'].split('\n')
                 self.stdscr.addstr(5, 2, "Note:")
-                for i, line in enumerate(note_lines[:3]):  # Show first 3 lines
-                    if i < 3:
-                        self.stdscr.addstr(6 + i, 4, line[:self.width-6])  # With indentation
-                    
+                note_display = self.entry['note'] if self.show_hidden else '*' * min(len(self.entry['note']), 30)
+                note_lines = note_display.split('\n')
+                for i, line in enumerate(note_lines[:3]):
+                    self.stdscr.addstr(6 + i, 4, line[:self.width-6])
+            
             # Draw menu
             menu_start_y = 10 if self.entry.get('note') else 6
             self.draw_menu(self.menu_items, self.selected_index, start_y=menu_start_y)
@@ -182,6 +190,10 @@ class EntryDetailsWindow(BaseWindow):
             elif key in [ord('p'), ord('P')]:
                 # Copy password
                 return 1
+            elif key in [ord('n'), ord('N')]:
+                return 2
+            elif key in [ord('v'), ord('V')]:
+                self.show_hidden = not self.show_hidden
             # Handle terminal size change
             elif key == curses.KEY_RESIZE:
                 self.resize()
@@ -343,6 +355,54 @@ class EditEntryWindow(BaseWindow):
                     input_value = input_value[:cursor_pos] + chr(key) + input_value[cursor_pos:]
                     cursor_pos += 1
                 
+                self.refresh()
+        elif field_name == "Note":
+            show_note = False
+            value = current_value
+            cursor_pos = len(value)
+            while True:
+                self.stdscr.move(12, 2)
+                self.stdscr.clrtoeol()
+                prompt = "Current note: "
+                display_note = value if show_note else '*' * min(len(value), 30)
+                self.stdscr.addstr(12, 2, prompt + display_note[:self.width-20])
+                self.stdscr.move(13, 2)
+                self.stdscr.clrtoeol()
+                input_prompt = "New note (up to 50 words): "
+                self.stdscr.addstr(13, 2, input_prompt)
+                self.stdscr.addstr(13, 2 + len(input_prompt), value[:self.width-20])
+                self.stdscr.move(13, 2 + len(input_prompt) + cursor_pos)
+                self.draw_footer(["[V] - Show/hide", "[Enter] - Save", "[Esc] - Cancel"])
+                key = self.stdscr.getch()
+                if key in [ord('v'), ord('V')]:
+                    show_note = not show_note
+                elif key == 27:
+                    return
+                elif key in [10, 13]:
+                    # Ограничение по словам
+                    words = re.findall(r'\S+', value)
+                    if len(words) > 50:
+                        value = ' '.join(words[:50])
+                    self.entry[field_map[field_name]] = value
+                    return
+                elif key == curses.KEY_BACKSPACE or key == 127 or key == 8:
+                    if cursor_pos > 0:
+                        value = value[:cursor_pos-1] + value[cursor_pos:]
+                        cursor_pos -= 1
+                elif key == curses.KEY_DC:
+                    if cursor_pos < len(value):
+                        value = value[:cursor_pos] + value[cursor_pos+1:]
+                elif key == curses.KEY_LEFT and cursor_pos > 0:
+                    cursor_pos -= 1
+                elif key == curses.KEY_RIGHT and cursor_pos < len(value):
+                    cursor_pos += 1
+                elif key == curses.KEY_HOME:
+                    cursor_pos = 0
+                elif key == curses.KEY_END:
+                    cursor_pos = len(value)
+                elif 32 <= key <= 126 and len(re.findall(r'\S+', value)) < 50:
+                    value = value[:cursor_pos] + chr(key) + value[cursor_pos:]
+                    cursor_pos += 1
                 self.refresh()
         else:
             # For other fields, show current value and allow editing
