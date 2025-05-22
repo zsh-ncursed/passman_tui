@@ -1,5 +1,5 @@
 import curses
-from .base import BaseWindow
+from .base import BaseWindow, KEYBINDINGS
 from ..password_generator import PasswordGenerator
 import re
 
@@ -15,7 +15,7 @@ class AddEntryWindow(BaseWindow):
         """Display add record window"""
         self.clear()
         self.draw_header("Add new record")
-        self.draw_footer(["[Enter] - Save", "[G] - Generate password", "[Esc] - Cancel"])
+        self.draw_footer(["SAVE", "GENERATE", "BACK_CANCEL"])
         
         # Ask for service name
         service_name = self.get_string_input("Service name: ", 3, 2)
@@ -36,18 +36,24 @@ class AddEntryWindow(BaseWindow):
             self.refresh()
             
             key = self.stdscr.getch()
-            if key == ord('g') or key == ord('G'):
+            if key == KEYBINDINGS["GENERATE"]:
                 password = self.password_generator.generate_password()
+                # self.stdscr.addstr(7, 2 + len("Password: ") + len(password), "") # Clear potential old text, handled by clrtoeol
                 continue
-            elif key in [10, 13]:  # Enter
-                if password:
+            elif key in KEYBINDINGS["SELECT"]:
+                if password: # Require a password to save
                     break
-            elif key == 27:  # Escape
+            elif key in KEYBINDINGS["BACK_CANCEL"]:
                 return None
-            elif key == curses.KEY_BACKSPACE or key == 127:
+            elif key in KEYBINDINGS["BACKSPACE"]:
                 password = password[:-1]
             elif 32 <= key <= 126:  # Printable characters
-                password += chr(key)
+                # TODO: This part could also use get_string_input for consistency,
+                # but the current structure is a custom loop.
+                # For now, just ensure max length for password is not exceeded.
+                # Assuming a reasonable max password length, e.g., 256
+                if len(password) < 256: 
+                    password += chr(key)
 
         # Ask for note (до 50 слов)
         note = self.get_string_input("Note (up to 50 words): ", 9, 2, max_length=1000)
@@ -78,11 +84,12 @@ class ViewEntriesWindow(BaseWindow):
         while True:
             self.clear()
             self.draw_header("Records list")
-            self.draw_footer(["[↑↓] - Navigation", "[Enter] - Select", "[Esc] - Back"])
+            self.draw_footer(["NAVIGATE_UP", "NAVIGATE_DOWN", "SELECT", "BACK_CANCEL"])
             
             if not self.entries:
                 self.draw_message("Records list is empty", self.height // 2, None, 5)
-                key = self.wait_for_key([10, 13, 27])  # Enter or Escape
+                # wait_for_key now expects action names
+                self.wait_for_key(["SELECT", "BACK_CANCEL"]) 
                 return None
                 
             # Create list for display
@@ -100,21 +107,21 @@ class ViewEntriesWindow(BaseWindow):
             key = self.stdscr.getch()
             
             # Navigation
-            if key == curses.KEY_UP:
+            if key == KEYBINDINGS["NAVIGATE_UP"]:
                 if self.selected_index > 0:
                     self.selected_index -= 1
                     if self.selected_index < self.offset:
                         self.offset = self.selected_index
-            elif key == curses.KEY_DOWN:
+            elif key == KEYBINDINGS["NAVIGATE_DOWN"]:
                 if self.selected_index < len(self.entries) - 1:
                     self.selected_index += 1
                     if self.selected_index >= self.offset + self.items_per_page:
                         self.offset += 1
             # Select record
-            elif key == 10 or key == 13:  # Enter
+            elif key in KEYBINDINGS["SELECT"]:
                 return self.selected_index
             # Exit
-            elif key == 27:  # Escape
+            elif key in KEYBINDINGS["BACK_CANCEL"]:
                 return None
             # Handle terminal size change
             elif key == curses.KEY_RESIZE:
@@ -147,7 +154,12 @@ class EntryDetailsWindow(BaseWindow):
         while True:
             self.clear()
             self.draw_header(f"Details: {self.entry['service_name']}")
-            self.draw_footer(["[V] - Show/hide"])
+            # Define actions for the footer. This might be a long list.
+            footer_actions = [
+                "SHOW_HIDE", "NAVIGATE_UP", "NAVIGATE_DOWN", "SELECT", "BACK_CANCEL",
+                "COPY_USERNAME", "COPY_PASSWORD", "COPY_NOTE"
+            ]
+            self.draw_footer(footer_actions)
             
             # Display record details
             self.stdscr.addstr(2, 2, f"Service: {self.entry['service_name']}")
@@ -172,27 +184,31 @@ class EntryDetailsWindow(BaseWindow):
             # Input handling
             key = self.stdscr.getch()
             
-            # Navigation
-            if key == curses.KEY_UP and self.selected_index > 0:
+            # Navigation for the menu items
+            if key == KEYBINDINGS["NAVIGATE_UP"] and self.selected_index > 0:
                 self.selected_index -= 1
-            elif key == curses.KEY_DOWN and self.selected_index < len(self.menu_items) - 1:
+            elif key == KEYBINDINGS["NAVIGATE_DOWN"] and self.selected_index < len(self.menu_items) - 1:
                 self.selected_index += 1
-            # Select item
-            elif key == 10 or key == 13:  # Enter
-                return self.selected_index
-            # Exit
-            elif key == 27:  # Escape
-                return len(self.menu_items) - 1  # Return selected item index
-            # Quick copy
-            elif key in [ord('l'), ord('L')]:
-                # Copy login
-                return 0
-            elif key in [ord('p'), ord('P')]:
-                # Copy password
+            # Select item from menu
+            elif key in KEYBINDINGS["SELECT"]:
+                return self.selected_index # This corresponds to actions like "Edit", "Delete", "Back"
+            # Back / Cancel action
+            elif key in KEYBINDINGS["BACK_CANCEL"]:
+                # Typically "Back" is the last item in such menus.
+                return len(self.menu_items) - 1 
+            # Quick actions
+            elif key == KEYBINDINGS["COPY_USERNAME"]:
+                # Corresponds to "Copy login" menu item at index 0
+                return 0 
+            elif key == KEYBINDINGS["COPY_PASSWORD"]:
+                # Corresponds to "Copy password" menu item at index 1
                 return 1
-            elif key in [ord('n'), ord('N')]:
+            elif key == KEYBINDINGS["COPY_NOTE"]:
+                # Corresponds to "Copy note" menu item at index 2
+                # This was previously ord('n'), which now maps to COPY_NOTE.
+                # Ensure KEYBINDINGS["NEW"] (also ord('n')) isn't active here if it's for creating new entries globally.
                 return 2
-            elif key in [ord('v'), ord('V')]:
+            elif key == KEYBINDINGS["SHOW_HIDE"]:
                 self.show_hidden = not self.show_hidden
             # Handle terminal size change
             elif key == curses.KEY_RESIZE:
@@ -241,35 +257,39 @@ class EditEntryWindow(BaseWindow):
             self.draw_menu(self.fields, self.selected_index, start_y=9)
             
             # Show password generation hint if password is selected
-            if self.selected_index == 2:  # Password field index
-                self.draw_footer(["[Enter] - Edit", "[G] - Generate", "[Esc] - Cancel"])
-            else:
-                self.draw_footer(["[Enter] - Edit", "[Esc] - Cancel"])
+            if self.selected_index == 2:  # Password field index ("Password")
+                self.draw_footer(["SELECT", "GENERATE", "BACK_CANCEL"])
+            elif self.selected_index == 3: # Note field index
+                 self.draw_footer(["SELECT", "SHOW_HIDE", "BACK_CANCEL"]) # Assuming 'V' for note visibility too
+            else: # Service name, Username, Save, Cancel
+                self.draw_footer(["SELECT", "BACK_CANCEL"])
             
             # Input handling
             key = self.stdscr.getch()
             
-            if key == curses.KEY_UP and self.selected_index > 0:
+            if key == KEYBINDINGS["NAVIGATE_UP"] and self.selected_index > 0:
                 self.selected_index -= 1
-            elif key == curses.KEY_DOWN and self.selected_index < len(self.fields) - 1:
+            elif key == KEYBINDINGS["NAVIGATE_DOWN"] and self.selected_index < len(self.fields) - 1:
                 self.selected_index += 1
-            elif key == 27:  # Escape
-                return None
-            elif key == 10 or key == 13:  # Enter
-                if self.selected_index == 4:  # Save
+            elif key in KEYBINDINGS["BACK_CANCEL"]:
+                return None # Cancel editing
+            elif key in KEYBINDINGS["SELECT"]:
+                if self.fields[self.selected_index] == "Save":
                     return self.entry
-                elif self.selected_index == 5:  # Cancel
+                elif self.fields[self.selected_index] == "Cancel":
                     return None
                 else:
-                    self.edit_field(self.selected_index)
-            elif (key in [ord('g'), ord('G')]) and self.selected_index == 2:  # Password generation
+                    # This will call edit_field for "Service name", "Username", "Password", "Note"
+                    self.edit_field(self.selected_index) 
+            elif key == KEYBINDINGS["GENERATE"] and self.fields[self.selected_index] == "Password":
                 self.entry['password'] = self.password_generator.generate_password()
+                # No need to call edit_field, password is set directly. Refresh will show it.
             
             self.refresh()
     
-    def edit_field(self, field_index):
+    def edit_field(self, field_index): # field_index refers to ["Service name", "Username", "Password", "Note"]
         """Edit selected field"""
-        field_name = self.fields[field_index]
+        field_name = self.fields[field_index] # "Service name", "Username", "Password", "Note"
         field_map = {
             "Service name": "service_name",
             "Username": "username",
@@ -315,43 +335,42 @@ class EditEntryWindow(BaseWindow):
                 # Position cursor
                 self.stdscr.move(13, 2 + len(input_prompt) + cursor_pos)
                 
+                # Footer for password editing
                 self.draw_footer([
-                    "[←→] - Move cursor",
-                    "[V] - Show/hide",
-                    "[G] - Generate",
-                    "[Enter] - Save",
-                    "[Esc] - Cancel"
+                    "NAVIGATE_LEFT", "NAVIGATE_RIGHT", "HOME", "END", 
+                    "SHOW_HIDE", "GENERATE", "SAVE", "BACK_CANCEL",
+                    "BACKSPACE", "DELETE_CHAR" # Implicitly handled by loop but good for user
                 ])
                 
-                key = self.stdscr.getch()
+                key = self.stdscr.getch() # Consider get_wch for unicode if issues
                 
-                if key in [ord('v'), ord('V')]:
+                if key == KEYBINDINGS["SHOW_HIDE"]:
                     show_password = not show_password
-                elif key in [ord('g'), ord('G')]:
+                elif key == KEYBINDINGS["GENERATE"]:
                     input_value = self.password_generator.generate_password()
                     cursor_pos = len(input_value)
-                elif key == 27:  # Escape
-                    return
-                elif key in [10, 13]:  # Enter
-                    if input_value:
+                elif key in KEYBINDINGS["BACK_CANCEL"]:
+                    return # Cancel editing this field
+                elif key in KEYBINDINGS["SELECT"]: # Using SELECT for save, consistent with get_string_input
+                    if input_value: # Only save if not empty, or allow empty? Current: must not be empty.
                         self.entry[field_map[field_name]] = input_value
-                    return
-                elif key == curses.KEY_BACKSPACE or key == 127 or key == 8:
+                    return # Finish editing this field
+                elif key in KEYBINDINGS["BACKSPACE"]:
                     if cursor_pos > 0:
                         input_value = input_value[:cursor_pos-1] + input_value[cursor_pos:]
                         cursor_pos -= 1
-                elif key == curses.KEY_DC:  # Delete
+                elif key == KEYBINDINGS["DELETE_CHAR"]:
                     if cursor_pos < len(input_value):
                         input_value = input_value[:cursor_pos] + input_value[cursor_pos+1:]
-                elif key == curses.KEY_LEFT and cursor_pos > 0:
+                elif key == KEYBINDINGS["NAVIGATE_LEFT"] and cursor_pos > 0:
                     cursor_pos -= 1
-                elif key == curses.KEY_RIGHT and cursor_pos < len(input_value):
+                elif key == KEYBINDINGS["NAVIGATE_RIGHT"] and cursor_pos < len(input_value):
                     cursor_pos += 1
-                elif key == curses.KEY_HOME:
+                elif key == KEYBINDINGS["HOME"]:
                     cursor_pos = 0
-                elif key == curses.KEY_END:
+                elif key == KEYBINDINGS["END"]:
                     cursor_pos = len(input_value)
-                elif 32 <= key <= 126 and len(input_value) < 50:  # Printable characters
+                elif 32 <= key <= 126 and len(input_value) < 256:  # Printable characters, increased limit
                     input_value = input_value[:cursor_pos] + chr(key) + input_value[cursor_pos:]
                     cursor_pos += 1
                 
@@ -369,40 +388,51 @@ class EditEntryWindow(BaseWindow):
                 self.stdscr.move(13, 2)
                 self.stdscr.clrtoeol()
                 input_prompt = "New note (up to 50 words): "
-                self.stdscr.addstr(13, 2, input_prompt)
-                self.stdscr.addstr(13, 2 + len(input_prompt), value[:self.width-20])
-                self.stdscr.move(13, 2 + len(input_prompt) + cursor_pos)
-                self.draw_footer(["[V] - Show/hide", "[Enter] - Save", "[Esc] - Cancel"])
-                key = self.stdscr.getch()
-                if key in [ord('v'), ord('V')]:
-                    show_note = not show_note
-                elif key == 27:
-                    return
-                elif key in [10, 13]:
-                    # Ограничение по словам
+                self.stdscr.addstr(13, 2, input_prompt) # No, input_prompt is "New note..."
+                # Display the actual editable value
+                self.stdscr.addstr(13, 2 + len(input_prompt), value) # Display full value for editing
+                self.stdscr.move(13, 2 + len(input_prompt) + cursor_pos) # Move cursor correctly
+
+                # Footer for note editing
+                self.draw_footer([
+                    "NAVIGATE_LEFT", "NAVIGATE_RIGHT", "HOME", "END",
+                    "SHOW_HIDE", "SAVE", "BACK_CANCEL",
+                    "BACKSPACE", "DELETE_CHAR"
+                ])
+                key = self.stdscr.getch() # Consider get_wch
+
+                if key == KEYBINDINGS["SHOW_HIDE"]:
+                    show_note = not show_note # This toggles the "Current note" display, not input
+                elif key in KEYBINDINGS["BACK_CANCEL"]:
+                    return # Cancel editing this field
+                elif key in KEYBINDINGS["SELECT"]: # Save
                     words = re.findall(r'\S+', value)
-                    if len(words) > 50:
+                    if len(words) > 50: # Word limit
                         value = ' '.join(words[:50])
                     self.entry[field_map[field_name]] = value
-                    return
-                elif key == curses.KEY_BACKSPACE or key == 127 or key == 8:
+                    return # Finish editing
+                elif key in KEYBINDINGS["BACKSPACE"]:
                     if cursor_pos > 0:
                         value = value[:cursor_pos-1] + value[cursor_pos:]
                         cursor_pos -= 1
-                elif key == curses.KEY_DC:
+                elif key == KEYBINDINGS["DELETE_CHAR"]:
                     if cursor_pos < len(value):
                         value = value[:cursor_pos] + value[cursor_pos+1:]
-                elif key == curses.KEY_LEFT and cursor_pos > 0:
+                elif key == KEYBINDINGS["NAVIGATE_LEFT"] and cursor_pos > 0:
                     cursor_pos -= 1
-                elif key == curses.KEY_RIGHT and cursor_pos < len(value):
+                elif key == KEYBINDINGS["NAVIGATE_RIGHT"] and cursor_pos < len(value):
                     cursor_pos += 1
-                elif key == curses.KEY_HOME:
+                elif key == KEYBINDINGS["HOME"]:
                     cursor_pos = 0
-                elif key == curses.KEY_END:
+                elif key == KEYBINDINGS["END"]:
                     cursor_pos = len(value)
-                elif 32 <= key <= 126 and len(re.findall(r'\S+', value)) < 50:
-                    value = value[:cursor_pos] + chr(key) + value[cursor_pos:]
-                    cursor_pos += 1
+                # Allow any printable char, including spaces. Max length for notes is implicitly handled by screen width or later by get_string_input if used.
+                # Max words check is only on save.
+                elif 32 <= key <= 126: # Printable ASCII. Max length for notes can be large.
+                     # Assuming max_length for notes around 1000 as used in AddEntryWindow's get_string_input
+                    if len(value) < 1000:
+                        value = value[:cursor_pos] + chr(key) + value[cursor_pos:]
+                        cursor_pos += 1
                 self.refresh()
         else:
             # For other fields, show current value and allow editing

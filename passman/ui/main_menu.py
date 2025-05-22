@@ -1,5 +1,5 @@
 import curses
-from .base import BaseWindow
+from .base import BaseWindow, KEYBINDINGS
 
 class MainMenu(BaseWindow):
     """Main application menu"""
@@ -21,7 +21,8 @@ class MainMenu(BaseWindow):
         while True:
             self.clear()
             self.draw_header("Password manager")
-            self.draw_footer()
+            # Pass the specific actions for the main menu footer
+            self.draw_footer(["NAVIGATE_UP", "NAVIGATE_DOWN", "SELECT", "BACK_CANCEL"])
             
             # Draw menu
             self.draw_menu(self.menu_items, self.selected_index)
@@ -30,16 +31,20 @@ class MainMenu(BaseWindow):
             key = self.stdscr.getch()
             
             # Navigation
-            if key == curses.KEY_UP and self.selected_index > 0:
+            if key == KEYBINDINGS["NAVIGATE_UP"] and self.selected_index > 0:
                 self.selected_index -= 1
-            elif key == curses.KEY_DOWN and self.selected_index < len(self.menu_items) - 1:
+            elif key == KEYBINDINGS["NAVIGATE_DOWN"] and self.selected_index < len(self.menu_items) - 1:
                 self.selected_index += 1
             # Select item
-            elif key == 10 or key == 13:  # Enter
+            elif key in KEYBINDINGS["SELECT"]:
                 return self.selected_index
-            # Exit
-            elif key == 27:  # Escape
-                return len(self.menu_items) - 1  # Return index of "Exit" item
+            # Exit (mapped to BACK_CANCEL as per typical UI, or could be a specific EXIT action)
+            # For main menu, Esc usually means "Exit Application" which is the last item.
+            elif key in KEYBINDINGS["BACK_CANCEL"]: 
+                # In this specific menu, "Exit" is an explicit option.
+                # Pressing Esc should probably select "Exit" or perform its action directly.
+                # Current behavior: return index of "Exit" item. This seems fine.
+                return len(self.menu_items) - 1
             # Handle terminal size change
             elif key == curses.KEY_RESIZE:
                 self.resize()

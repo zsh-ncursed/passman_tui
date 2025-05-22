@@ -2,6 +2,35 @@ import curses
 import os
 import pyperclip
 
+KEYBINDINGS = {
+    "NAVIGATE_UP": curses.KEY_UP,
+    "NAVIGATE_DOWN": curses.KEY_DOWN,
+    "NAVIGATE_LEFT": curses.KEY_LEFT,
+    "NAVIGATE_RIGHT": curses.KEY_RIGHT,
+    "SELECT": [curses.KEY_ENTER, 10, 13],
+    "BACK_CANCEL": [curses.KEY_EXIT, 27], # Escape key
+    "COPY": ord('c'), # General copy, context-dependent
+    "COPY_USERNAME": ord('l'), # 'l' for login/username
+    "COPY_PASSWORD": ord('p'),
+    "COPY_NOTE": ord('n'),
+    "EDIT": ord('e'),
+    "DELETE_ENTRY": [curses.KEY_DC, ord('d')], # For deleting a whole entry
+    "DELETE_CHAR": curses.KEY_DC, # For deleting a character in input
+    "BACKSPACE": [curses.KEY_BACKSPACE, 127, 8],
+    "NEW": ord('n'), # 'n' for new entry in some contexts, conflicts with copy_note. Will need careful usage.
+                     # For EntryDetailsWindow, ord('n') is for copy_note.
+                     # For global actions, ord('n') might be for "New".
+                     # This implies actions for draw_footer should be context-specific.
+    "SAVE": ord('s'),
+    "GENERATE": ord('g'),
+    "SETTINGS": ord('S'),
+    "SHOW_HIDE": ord('v'), # 'v' for view/toggle visibility
+    "HELP": [ord('h'), curses.KEY_F1],
+    "PASTE_FROM_BUFFER": curses.KEY_F2,
+    "HOME": curses.KEY_HOME,
+    "END": curses.KEY_END,
+}
+
 class BaseWindow:
     """Base class for TUI interface windows"""
     
@@ -59,23 +88,95 @@ class BaseWindow:
             except:
                 pass
     
-    def draw_footer(self, commands=None):
-        """Drawing bottom panel with hints"""
-        if commands is None:
-            commands = ["[↑↓] - Navigation", "[Enter] - Select", "[Esc] - Back"]
+    def _get_key_display_name(self, key_name):
+        """Helper function to get display names for keys."""
+        key_values = KEYBINDINGS.get(key_name)
+        if not key_values:
+            return ""
+
+        if not isinstance(key_values, list):
+            key_values = [key_values]
+
+        names = []
+        for val in key_values:
+            if val == curses.KEY_UP:
+                names.append("↑")
+            elif val == curses.KEY_DOWN:
+                names.append("↓")
+            elif val == curses.KEY_LEFT:
+                names.append("←")
+            elif val == curses.KEY_RIGHT:
+                names.append("→")
+            elif val in [curses.KEY_ENTER, 10, 13]:
+                if "Enter" not in names: # Avoid duplicates like [Enter, Enter]
+                    names.append("Enter")
+            elif val in [curses.KEY_EXIT, 27]: # Escape
+                if "Esc" not in names:
+                    names.append("Esc")
+            elif key_name == "DELETE_CHAR" and val == curses.KEY_DC: # Distinguish from DELETE_ENTRY
+                names.append("Del")
+            elif key_name == "DELETE_ENTRY" and val == curses.KEY_DC:
+                 if "Del" not in names: names.append("Del") # Avoid Del/Del if 'd' is also there
+            elif val == curses.KEY_DC and key_name != "DELETE_CHAR" and key_name != "DELETE_ENTRY": # Generic KEY_DC if used by other actions
+                 if "Del" not in names: names.append("Del")
+            elif val in KEYBINDINGS.get("BACKSPACE", []): # Check against the list for BACKSPACE
+                 if "Bksp" not in names:
+                    names.append("Bksp")
+            elif curses.KEY_F0 <= val <= curses.KEY_F12:
+                names.append(f"F{val - curses.KEY_F0}")
+            elif isinstance(val, int) and 32 <= val <= 126: # Printable ASCII
+                names.append(chr(val))
+            # Add more specific key names if needed
         
-        footer_text = " | ".join(commands)
+        if not names: # Fallback for unhandled keys
+            if isinstance(key_values[0], int):
+                return f"Key({key_values[0]})" # e.g. for unmapped ord()
+            return "?"
+
+        return "/".join(names)
+
+
+    def draw_footer(self, available_actions=None):
+        """Drawing bottom panel with hints based on available actions."""
+        if available_actions is None:
+            # Default actions if none are provided for a specific window
+            available_actions = ["NAVIGATE_UP", "NAVIGATE_DOWN", "SELECT", "BACK_CANCEL"]
+
+        commands_list = []
+        for action_name in available_actions:
+            key_display = self._get_key_display_name(action_name)
+            if key_display:
+                # Make action name more readable, e.g., NAVIGATE_UP -> Navigate Up
+                readable_action_name = action_name.replace("_", " ").title()
+                commands_list.append(f"[{key_display}] - {readable_action_name}")
+        
+        footer_text = " | ".join(commands_list)
         try:
             self.stdscr.addstr(self.height - 1, 0, " " * (self.width - 1), curses.color_pair(1))
             if len(footer_text) > self.width - 2:
-                footer_text = footer_text[:self.width - 5] + "..."
+                # Attempt to intelligently shorten if too long
+                if len(commands_list) > 1 :
+                    condensed_list = []
+                    max_len_per_command = (self.width - 2 - (len(commands_list) -1) * 3) // len(commands_list)
+                    for cmd_full_text in commands_list:
+                        if len(cmd_full_text) > max_len_per_command:
+                            parts = cmd_full_text.split(" - ")
+                            action_part = parts[1] if len(parts)>1 else parts[0]
+                            condensed_list.append(f"{parts[0]} - {action_part[:max_len_per_command - len(parts[0]) -5]}...")
+                        else:
+                            condensed_list.append(cmd_full_text)
+                    footer_text = " | ".join(condensed_list)
+                else: # Single command, just truncate
+                     footer_text = footer_text[:self.width - 5] + "..."
+
             self.stdscr.addstr(self.height - 1, (self.width - len(footer_text)) // 2, footer_text, curses.color_pair(1))
         except:
             try:
                 self.stdscr.addstr(self.height - 1, 0, " " * (self.width - 2), curses.color_pair(1))
-                self.stdscr.addstr(self.height - 1, 1, "Menu", curses.color_pair(1))
+                # Fallback to a generic message if specific commands can't be drawn
+                self.stdscr.addstr(self.height - 1, 1, "Actions available", curses.color_pair(1))
             except:
-                pass
+                pass # Final fallback: do nothing if screen is too small even for generic message
     
     def draw_menu(self, items, selected_index, start_y=2, start_x=2):
         """Drawing menu with highlighted selected item"""
@@ -145,7 +246,7 @@ class BaseWindow:
                 self.stdscr.addstr(y, input_x, display + " " * (max_length - len(result)))
                 self.stdscr.move(y, input_x + current_pos)
                 if show_footer:
-                    self.draw_footer(["[Enter] - Save", "[Esc] - Cancel", "[F2] - Insert from buffer"])
+                    self.draw_footer(["SAVE", "BACK_CANCEL", "PASTE_FROM_BUFFER"])
             except:
                 pass
             key = self.stdscr.get_wch()  # Use get_wch for Unicode support
@@ -167,22 +268,23 @@ class BaseWindow:
                     result = result[:current_pos] + key + result[current_pos:]
                     current_pos += 1
             elif isinstance(key, int):
-                if key == curses.KEY_BACKSPACE or key == 127 or key == 8:
+                # Input handling in get_string_input using KEYBINDINGS
+                if key in KEYBINDINGS.get("BACKSPACE", []) :
                     if current_pos > 0:
                         result = result[:current_pos-1] + result[current_pos:]
                         current_pos -= 1
-                elif key == curses.KEY_DC:
+                elif key == KEYBINDINGS.get("DELETE_CHAR"): # Using DELETE_CHAR for single char deletion
                     if current_pos < len(result):
                         result = result[:current_pos] + result[current_pos+1:]
-                elif key == curses.KEY_LEFT and current_pos > 0:
+                elif key == KEYBINDINGS.get("NAVIGATE_LEFT") and current_pos > 0:
                     current_pos -= 1
-                elif key == curses.KEY_RIGHT and current_pos < len(result):
+                elif key == KEYBINDINGS.get("NAVIGATE_RIGHT") and current_pos < len(result):
                     current_pos += 1
-                elif key == curses.KEY_HOME:
+                elif key == KEYBINDINGS.get("HOME"):
                     current_pos = 0
-                elif key == curses.KEY_END:
+                elif key == KEYBINDINGS.get("END"):
                     current_pos = len(result)
-                elif key == curses.KEY_F2:
+                elif key == KEYBINDINGS.get("PASTE_FROM_BUFFER"):
                     try:
                         clip = pyperclip.paste()
                         if clip:
@@ -195,12 +297,38 @@ class BaseWindow:
         curses.curs_set(0)
         return result
     
-    def wait_for_key(self, allowed_keys=None):
-        """Waiting for key press"""
+    def wait_for_key(self, allowed_actions=None):
+        """Waiting for key press.
+        'allowed_actions' is a list of action names from KEYBINDINGS.
+        If None, any key press is returned.
+        """
+        target_keys = None
+        if allowed_actions is not None:
+            target_keys = []
+            for action in allowed_actions:
+                bound_keys = KEYBINDINGS.get(action)
+                if bound_keys:
+                    if isinstance(bound_keys, list):
+                        target_keys.extend(bound_keys)
+                    else:
+                        target_keys.append(bound_keys)
+            if not target_keys: # If allowed_actions were specified but none were valid/found
+                # This case should ideally not happen if KEYBINDINGS and calls are correct.
+                # Decide behavior: either allow all, or allow none (block until valid key for *something*).
+                # For now, let's stick to allowing any key if the list ends up empty.
+                pass
+
+
         while True:
-            key = self.stdscr.getch()
-            if allowed_keys is None or key in allowed_keys:
-                return key
+            key = self.stdscr.getch() # Consider get_wch() for wider compatibility if issues arise
+            if target_keys is None or key in target_keys:
+                # To return the action name instead of the key code:
+                # for action, keys in KEYBINDINGS.items():
+                #     if action in (allowed_actions or []):
+                #         if (isinstance(keys, list) and key in keys) or key == keys:
+                #             return action
+                return key # Returning the raw key is simpler for now.
+                           # Callers can then check which action it corresponds to.
     
     def refresh(self):
         """Screen update"""

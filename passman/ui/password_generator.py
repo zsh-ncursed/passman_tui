@@ -1,5 +1,5 @@
 import curses
-from .base import BaseWindow
+from .base import BaseWindow, KEYBINDINGS
 
 class PasswordGeneratorWindow(BaseWindow):
     """Password Generator Window"""
@@ -65,10 +65,10 @@ class PasswordGeneratorWindow(BaseWindow):
             self.draw_header("Password Generator")
             
             if self.config_mode:
-                self.draw_footer(["[↑↓] - Navigation", "[Enter] - Select", "[Esc] - Back", "[←→] - Change"])
+                self.draw_footer(["NAVIGATE_UP", "NAVIGATE_DOWN", "NAVIGATE_LEFT", "NAVIGATE_RIGHT", "SELECT", "BACK_CANCEL"])
                 self.draw_menu(self.config_items, self.config_index)
             else:
-                self.draw_footer(["[c] - Copy", "[g] - New Password", "[s] - Settings", "[Esc] - Back"])
+                self.draw_footer(["COPY", "GENERATE", "SETTINGS", "BACK_CANCEL"])
                 
                 # Display generated password
                 if self.password:
@@ -85,45 +85,47 @@ class PasswordGeneratorWindow(BaseWindow):
             
             if self.config_mode:
                 # Configuration Mode
-                if key == curses.KEY_UP and self.config_index > 0:
+                if key == KEYBINDINGS["NAVIGATE_UP"] and self.config_index > 0:
                     self.config_index -= 1
-                elif key == curses.KEY_DOWN and self.config_index < len(self.config_items) - 1:
+                elif key == KEYBINDINGS["NAVIGATE_DOWN"] and self.config_index < len(self.config_items) - 1:
                     self.config_index += 1
-                elif key == 10 or key == 13:  # Enter
+                elif key in KEYBINDINGS["SELECT"]:
                     if self.config_index == 5:  # Generate Password
                         self.generate_password()
                         self.config_mode = False
                     elif self.config_index == 6:  # Back
                         self.config_mode = False
                     elif self.config_index == 0:  # Password Length
-                        pass  # Handled by left/right keys
-                    else:  # Toggle switches
-                        attribute_names = ["include_lowercase", "include_uppercase", 
-                                         "include_digits", "include_special"]
-                        attr_name = attribute_names[self.config_index - 1]
-                        setattr(self, attr_name, not getattr(self, attr_name))
-                        self.update_config_items()
-                elif key == 27:  # Escape
+                        pass  # Handled by left/right keys, no action on SELECT for this item
+                    else:  # Toggle switches for include_lowercase, etc.
+                        # Ensure config_index is valid for attribute_names
+                        if 1 <= self.config_index <= 4:
+                            attribute_names = ["include_lowercase", "include_uppercase", 
+                                             "include_digits", "include_special"]
+                            attr_name = attribute_names[self.config_index - 1]
+                            setattr(self, attr_name, not getattr(self, attr_name))
+                            self.update_config_items()
+                elif key in KEYBINDINGS["BACK_CANCEL"]:
                     self.config_mode = False
-                elif key == curses.KEY_LEFT and self.config_index == 0:  # Decrease password length
-                    if self.password_length > 4:
+                elif key == KEYBINDINGS["NAVIGATE_LEFT"] and self.config_index == 0:  # Decrease password length
+                    if self.password_length > 4: # Assuming min length 4
                         self.password_length -= 1
                         self.update_config_items()
-                elif key == curses.KEY_RIGHT and self.config_index == 0:  # Increase password length
-                    if self.password_length < 64:
+                elif key == KEYBINDINGS["NAVIGATE_RIGHT"] and self.config_index == 0:  # Increase password length
+                    if self.password_length < 64: # Assuming max length 64
                         self.password_length += 1
                         self.update_config_items()
             else:
                 # Main display mode
-                if key == ord('c'):  # Copy password
-                    return self.password
-                elif key == ord('g'):  # Generate new password
+                if key == KEYBINDINGS["COPY"]:
+                    return self.password # Return the password string to be copied by the caller
+                elif key == KEYBINDINGS["GENERATE"]:
                     self.generate_password()
-                elif key == ord('s'):  # Switch to settings mode
+                elif key == KEYBINDINGS["SETTINGS"]:
                     self.config_mode = True
-                    self.config_index = 0
-                elif key == 27:  # Escape
-                    return None
+                    self.config_index = 0 # Reset config index when entering settings
+                elif key in KEYBINDINGS["BACK_CANCEL"]:
+                    return None # Exit window
             
             # Handle terminal resize
             if key == curses.KEY_RESIZE:
