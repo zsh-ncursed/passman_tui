@@ -2,33 +2,43 @@ import curses
 import os
 import pyperclip
 
+# KEYBINDINGS Configuration:
+# This dictionary maps action names to their properties, which include:
+#   - "keys": A curses key code (e.g., curses.KEY_UP) or a list of key codes
+#             (e.g., [curses.KEY_ENTER, 10, 13] for Enter key variations).
+#             These are the actual key values that the application will listen for.
+#   - "display_name": A human-readable string describing the action (e.g., "Navigate Up").
+#                     This is used for full display in the footer when space permits.
+#   - "short_name": An abbreviated version of the display_name (e.g., "Sel" for "Select").
+#                   Used in the footer when space is limited. Optional.
+#   - "is_nav_key": A boolean flag (True/False). If True, the action is considered a
+#                   primary navigation or simple editing key (like arrows, Home, End, Backspace, Del).
+#                   In the footer, these are typically displayed as just their key symbol(s)
+#                   (e.g., "[↑]") without the display_name, to save space. Optional, defaults to False if not present.
 KEYBINDINGS = {
-    "NAVIGATE_UP": curses.KEY_UP,
-    "NAVIGATE_DOWN": curses.KEY_DOWN,
-    "NAVIGATE_LEFT": curses.KEY_LEFT,
-    "NAVIGATE_RIGHT": curses.KEY_RIGHT,
-    "SELECT": [curses.KEY_ENTER, 10, 13],
-    "BACK_CANCEL": [curses.KEY_EXIT, 27], # Escape key
-    "COPY": ord('c'), # General copy, context-dependent
-    "COPY_USERNAME": ord('l'), # 'l' for login/username
-    "COPY_PASSWORD": ord('p'),
-    "COPY_NOTE": ord('n'),
-    "EDIT": ord('e'),
-    "DELETE_ENTRY": [curses.KEY_DC, ord('d')], # For deleting a whole entry
-    "DELETE_CHAR": curses.KEY_DC, # For deleting a character in input
-    "BACKSPACE": [curses.KEY_BACKSPACE, 127, 8],
-    "NEW": ord('n'), # 'n' for new entry in some contexts, conflicts with copy_note. Will need careful usage.
-                     # For EntryDetailsWindow, ord('n') is for copy_note.
-                     # For global actions, ord('n') might be for "New".
-                     # This implies actions for draw_footer should be context-specific.
-    "SAVE": ord('s'),
-    "GENERATE": ord('g'),
-    "SETTINGS": ord('S'),
-    "SHOW_HIDE": ord('v'), # 'v' for view/toggle visibility
-    "HELP": [ord('h'), curses.KEY_F1],
-    "PASTE_FROM_BUFFER": curses.KEY_F2,
-    "HOME": curses.KEY_HOME,
-    "END": curses.KEY_END,
+    "NAVIGATE_UP":       { "keys": curses.KEY_UP, "display_name": "Navigate Up", "is_nav_key": True },
+    "NAVIGATE_DOWN":     { "keys": curses.KEY_DOWN, "display_name": "Navigate Down", "is_nav_key": True },
+    "NAVIGATE_LEFT":     { "keys": curses.KEY_LEFT, "display_name": "Navigate Left", "is_nav_key": True },
+    "NAVIGATE_RIGHT":    { "keys": curses.KEY_RIGHT, "display_name": "Navigate Right", "is_nav_key": True },
+    "SELECT":            { "keys": [curses.KEY_ENTER, 10, 13], "display_name": "Select", "short_name": "Sel" },
+    "BACK_CANCEL":       { "keys": [curses.KEY_EXIT, 27], "display_name": "Back/Cancel", "short_name": "Esc" },
+    "COPY":              { "keys": ord('c'), "display_name": "Copy", "short_name": "Cpy" },
+    "COPY_USERNAME":     { "keys": ord('l'), "display_name": "Copy User", "short_name": "User" },
+    "COPY_PASSWORD":     { "keys": ord('p'), "display_name": "Copy Pass", "short_name": "Pass" },
+    "COPY_NOTE":         { "keys": ord('n'), "display_name": "Copy Note", "short_name": "Note" }, # 'n'
+    "EDIT":              { "keys": ord('e'), "display_name": "Edit", "short_name": "Edit" },
+    "DELETE_ENTRY":      { "keys": [curses.KEY_DC, ord('D')], "display_name": "Delete Entry", "short_name": "Del" }, # Changed to 'D'
+    "DELETE_CHAR":       { "keys": curses.KEY_DC, "display_name": "Delete Char", "is_nav_key": True }, # Character Del
+    "BACKSPACE":         { "keys": [curses.KEY_BACKSPACE, 127, 8], "display_name": "Backspace", "is_nav_key": True },
+    "NEW":               { "keys": ord('N'), "display_name": "New", "short_name": "New" }, # Changed to 'N'
+    "SAVE":              { "keys": ord('s'), "display_name": "Save", "short_name": "Save" },
+    "GENERATE":          { "keys": ord('g'), "display_name": "Generate", "short_name": "Gen" },
+    "SETTINGS":          { "keys": ord('S'), "display_name": "Settings", "short_name": "Set" }, # Capital S
+    "SHOW_HIDE":         { "keys": ord('v'), "display_name": "Show/Hide", "short_name": "View" },
+    "HELP":              { "keys": [ord('h'), curses.KEY_F1], "display_name": "Help", "short_name": "Help" },
+    "PASTE_FROM_BUFFER": { "keys": curses.KEY_F2, "display_name": "Paste", "short_name": "Paste" },
+    "HOME":              { "keys": curses.KEY_HOME, "display_name": "Home", "is_nav_key": True },
+    "END":               { "keys": curses.KEY_END, "display_name": "End", "is_nav_key": True },
 }
 
 class BaseWindow:
@@ -88,95 +98,196 @@ class BaseWindow:
             except:
                 pass
     
-    def _get_key_display_name(self, key_name):
-        """Helper function to get display names for keys."""
-        key_values = KEYBINDINGS.get(key_name)
-        if not key_values:
+    def _get_key_display_name(self, action_key_name):
+        """
+        Helper function to convert an action's key codes into a human-readable string of symbols.
+
+        This function consults the `KEYBINDINGS` dictionary for the given `action_key_name`.
+        It translates curses key constants (e.g., `curses.KEY_UP`) into symbols (e.g., "↑")
+        and printable characters (e.g., `ord('c')`) into the character itself (e.g., "c").
+        If an action has multiple keys assigned (e.g., Enter and keypad Enter), they are
+        joined by "/".
+
+        Args:
+            action_key_name (str): The name of the action (a key in `KEYBINDINGS`).
+
+        Returns:
+            str: A string representing the key symbols for the action (e.g., "↑", "Esc", "c/Ctrl+C").
+                 Returns an empty string if the action is not found or has no keys.
+                 Returns "?" or a raw key name as a fallback for unmapped/unrecognized keys.
+        """
+        action_info = KEYBINDINGS.get(action_key_name)
+        if not action_info or "keys" not in action_info:
             return ""
 
-        if not isinstance(key_values, list):
-            key_values = [key_values]
+        key_codes = action_info["keys"]
+        if not isinstance(key_codes, list):
+            key_codes = [key_codes]
 
         names = []
-        for val in key_values:
-            if val == curses.KEY_UP:
-                names.append("↑")
-            elif val == curses.KEY_DOWN:
-                names.append("↓")
-            elif val == curses.KEY_LEFT:
-                names.append("←")
-            elif val == curses.KEY_RIGHT:
-                names.append("→")
+        for val in key_codes:
+            if val == curses.KEY_UP: names.append("↑")
+            elif val == curses.KEY_DOWN: names.append("↓")
+            elif val == curses.KEY_LEFT: names.append("←")
+            elif val == curses.KEY_RIGHT: names.append("→")
             elif val in [curses.KEY_ENTER, 10, 13]:
-                if "Enter" not in names: # Avoid duplicates like [Enter, Enter]
-                    names.append("Enter")
+                if "Enter" not in names: names.append("Enter")
             elif val in [curses.KEY_EXIT, 27]: # Escape
-                if "Esc" not in names:
-                    names.append("Esc")
-            elif key_name == "DELETE_CHAR" and val == curses.KEY_DC: # Distinguish from DELETE_ENTRY
-                names.append("Del")
-            elif key_name == "DELETE_ENTRY" and val == curses.KEY_DC:
-                 if "Del" not in names: names.append("Del") # Avoid Del/Del if 'd' is also there
-            elif val == curses.KEY_DC and key_name != "DELETE_CHAR" and key_name != "DELETE_ENTRY": # Generic KEY_DC if used by other actions
-                 if "Del" not in names: names.append("Del")
-            elif val in KEYBINDINGS.get("BACKSPACE", []): # Check against the list for BACKSPACE
-                 if "Bksp" not in names:
-                    names.append("Bksp")
-            elif curses.KEY_F0 <= val <= curses.KEY_F12:
-                names.append(f"F{val - curses.KEY_F0}")
+                if "Esc" not in names: names.append("Esc")
+            elif val == curses.KEY_DC: # Delete Character (covers DELETE_CHAR and part of DELETE_ENTRY)
+                if "Del" not in names: names.append("Del")
+            elif val in [curses.KEY_BACKSPACE, 127, 8]: # Backspace
+                 if "Bksp" not in names: names.append("Bksp")
+            elif curses.KEY_F0 <= val <= curses.KEY_F12: names.append(f"F{val - curses.KEY_F0}")
+            elif val == curses.KEY_HOME: 
+                if "Home" not in names: names.append("Home")
+            elif val == curses.KEY_END:
+                if "End" not in names: names.append("End")
             elif isinstance(val, int) and 32 <= val <= 126: # Printable ASCII
-                names.append(chr(val))
-            # Add more specific key names if needed
+                char_repr = chr(val)
+                # Avoid duplicate char display if key is same as one from list (e.g. 'D' in DELETE_ENTRY)
+                if char_repr not in names : names.append(char_repr)
         
-        if not names: # Fallback for unhandled keys
-            if isinstance(key_values[0], int):
-                return f"Key({key_values[0]})" # e.g. for unmapped ord()
-            return "?"
-
+        if not names: # Fallback
+            try: 
+                # For keys like KEY_DC that might not have a special char above but are valid names
+                if isinstance(key_codes[0], int) and key_codes[0] > 0:
+                    raw_name = curses.keyname(key_codes[0]).decode('utf-8')
+                    # Make some common ones prettier
+                    if raw_name.startswith('KEY_'): raw_name = raw_name[4:]
+                    if raw_name == "DC": return "Del"
+                    return raw_name
+                return "?"
+            except: return "?"
         return "/".join(names)
 
+    def _generate_footer_segments(self, actions_to_display, use_short_names=False):
+        """
+        Generates a list of string segments for the footer, one for each action.
+
+        Args:
+            actions_to_display (list): A list of action names (keys from KEYBINDINGS).
+            use_short_names (bool): If True, uses the 'short_name' from KEYBINDINGS
+                                    for non-navigation actions. Otherwise, uses 'display_name'.
+
+        Returns:
+            list: A list of formatted strings, e.g., ["[↑]", "[Esc] - Back/Cancel"].
+        """
+        segments = []
+        for action_name in actions_to_display:
+            action_info = KEYBINDINGS.get(action_name)
+            if not action_info: continue
+            
+            key_display = self._get_key_display_name(action_name)
+            if not key_display: continue
+
+            if action_info.get("is_nav_key"):
+                segments.append(f"[{key_display}]")
+            else:
+                text = action_info.get("short_name") if use_short_names else action_info.get("display_name")
+                if not text: text = action_name.replace("_", " ").title() # Fallback if names missing
+                segments.append(f"[{key_display}] - {text}")
+        return segments
 
     def draw_footer(self, available_actions=None):
-        """Drawing bottom panel with hints based on available actions."""
-        if available_actions is None:
-            # Default actions if none are provided for a specific window
+        """
+        Draws the bottom footer panel with hints, adapting to terminal width.
+        The method attempts several strategies to make the footer fit:
+        1. Initial Format: Displays navigation keys as symbols (e.g., "[↑]") and other
+           actions with their full display name (e.g., "[S] - Save").
+        2. Short Names: If the initial format is too wide, it tries using the 'short_name'
+           for non-navigation actions (e.g., "[S] - Save" might use a short name if defined).
+        3. Drop Non-Essential Actions: If still too wide, it iteratively removes actions
+           that are not in the 'essential_actions' set (e.g., "HELP" might be dropped
+           before "SELECT"). Actions are generally removed from the end of the provided list.
+        4. Final Truncation: As a last resort, if the footer text is still too long
+           (e.g., due to a single very long action name or an extremely narrow terminal),
+           it truncates the string and appends "...".
+        Error handling is included to prevent crashes on very small terminal sizes.
+        """
+        min_safe_width_for_generic_message = 10 # e.g., for "Menu" + padding
+        if self.width < min_safe_width_for_generic_message:
+            try: # Minimal possible footer for extremely tiny screen
+                self.stdscr.addstr(self.height - 1, 0, " " * (self.width), curses.color_pair(1))
+                if self.width > 1: self.stdscr.addstr(self.height - 1, 0, "." * self.width, curses.color_pair(1))
+            except: pass
+            return
+
+        if available_actions is None or not available_actions:
             available_actions = ["NAVIGATE_UP", "NAVIGATE_DOWN", "SELECT", "BACK_CANCEL"]
-
-        commands_list = []
-        for action_name in available_actions:
-            key_display = self._get_key_display_name(action_name)
-            if key_display:
-                # Make action name more readable, e.g., NAVIGATE_UP -> Navigate Up
-                readable_action_name = action_name.replace("_", " ").title()
-                commands_list.append(f"[{key_display}] - {readable_action_name}")
         
-        footer_text = " | ".join(commands_list)
-        try:
-            self.stdscr.addstr(self.height - 1, 0, " " * (self.width - 1), curses.color_pair(1))
-            if len(footer_text) > self.width - 2:
-                # Attempt to intelligently shorten if too long
-                if len(commands_list) > 1 :
-                    condensed_list = []
-                    max_len_per_command = (self.width - 2 - (len(commands_list) -1) * 3) // len(commands_list)
-                    for cmd_full_text in commands_list:
-                        if len(cmd_full_text) > max_len_per_command:
-                            parts = cmd_full_text.split(" - ")
-                            action_part = parts[1] if len(parts)>1 else parts[0]
-                            condensed_list.append(f"{parts[0]} - {action_part[:max_len_per_command - len(parts[0]) -5]}...")
-                        else:
-                            condensed_list.append(cmd_full_text)
-                    footer_text = " | ".join(condensed_list)
-                else: # Single command, just truncate
-                     footer_text = footer_text[:self.width - 5] + "..."
+        actions_to_render = list(available_actions) # Start with all actions
 
-            self.stdscr.addstr(self.height - 1, (self.width - len(footer_text)) // 2, footer_text, curses.color_pair(1))
-        except:
-            try:
-                self.stdscr.addstr(self.height - 1, 0, " " * (self.width - 2), curses.color_pair(1))
-                # Fallback to a generic message if specific commands can't be drawn
-                self.stdscr.addstr(self.height - 1, 1, "Actions available", curses.color_pair(1))
+        # Attempt 1: Full names, nav keys simplified
+        commands_list = self._generate_footer_segments(actions_to_render, use_short_names=False)
+        footer_text = " | ".join(commands_list)
+
+        # Attempt 2: Short names, nav keys simplified
+        if len(footer_text) > self.width - 2 and len(commands_list) > 0:
+            commands_list_short = self._generate_footer_segments(actions_to_render, use_short_names=True)
+            footer_text_short = " | ".join(commands_list_short)
+            if len(footer_text_short) <= self.width - 2 or len(footer_text_short) < len(footer_text): # Use if it fits or is shorter
+                footer_text = footer_text_short
+                commands_list = commands_list_short 
+        
+        # Attempt 3: Drop non-essential actions if still too long
+        # Essential actions are less likely to be dropped.
+        essential_actions = {"SELECT", "BACK_CANCEL", "SAVE", "NAVIGATE_UP", "NAVIGATE_DOWN", "NAVIGATE_LEFT", "NAVIGATE_RIGHT"}
+        
+        # We use the list of actions (actions_to_render) to decide who to drop,
+        # then regenerate the command segments.
+        temp_actions_for_dropping = list(actions_to_render)
+
+        while len(footer_text) > self.width - 2 and len(temp_actions_for_dropping) > 1:
+            dropped_an_action = False
+            # Try to drop the last non-essential action
+            for i in range(len(temp_actions_for_dropping) - 1, -1, -1):
+                action_name_to_drop = temp_actions_for_dropping[i]
+                if action_name_to_drop not in essential_actions:
+                    temp_actions_for_dropping.pop(i)
+                    dropped_an_action = True
+                    break
+            
+            if not dropped_an_action: # All remaining are essential, or only one action left
+                # If all are essential, just pop the last one to try to make space
+                if len(temp_actions_for_dropping) > 1 : # Check to prevent emptying the list if all are essential
+                     temp_actions_for_dropping.pop()
+                else: # Only one item left and it's too long, break and let truncation handle it
+                    break
+
+            actions_to_render = list(temp_actions_for_dropping) # Update the list of actions to render
+            commands_list = self._generate_footer_segments(actions_to_render, use_short_names=True) # Rebuild with short names
+            footer_text = " | ".join(commands_list)
+            if not dropped_an_action and len(temp_actions_for_dropping) <=1 : # Break if stuck
+                break
+        
+        # Final truncation if still too long (e.g. one item is too long for screen)
+        if len(footer_text) > self.width - 2:
+            footer_text = footer_text[:max(0, self.width - 2 - 3)] + "..." 
+            if self.width - 2 < 3: footer_text = "..." if self.width > 2 else ""
+
+        try:
+            self.stdscr.addstr(self.height - 1, 0, " " * (self.width -1), curses.color_pair(1)) # Clear line
+            start_x = (self.width - len(footer_text)) // 2
+            if start_x < 0: start_x = 0
+            
+            # Ensure the string does not exceed the screen width from start_x
+            drawable_footer_text = footer_text
+            if start_x + len(footer_text) > self.width -1 :
+                drawable_footer_text = footer_text[:max(0, self.width - 1 - start_x)]
+
+            if self.height - 1 >= 0 and len(drawable_footer_text) > 0 :
+                 self.stdscr.addstr(self.height - 1, start_x, drawable_footer_text, curses.color_pair(1))
+        except curses.error:
+            try: # Fallback to a very generic message if all else fails
+                self.stdscr.addstr(self.height - 1, 0, " " * (self.width-1), curses.color_pair(1))
+                generic_msg = "Actions"
+                if self.width -2 > len(generic_msg):
+                    self.stdscr.addstr(self.height - 1, 1, generic_msg, curses.color_pair(1))
+                elif self.width > 1: # even more generic if "Actions" doesn't fit
+                    self.stdscr.addstr(self.height - 1, 1, "...", curses.color_pair(1))
             except:
-                pass # Final fallback: do nothing if screen is too small even for generic message
+                pass # Absolute fallback: do nothing
     
     def draw_menu(self, items, selected_index, start_y=2, start_x=2):
         """Drawing menu with highlighted selected item"""
@@ -268,23 +379,23 @@ class BaseWindow:
                     result = result[:current_pos] + key + result[current_pos:]
                     current_pos += 1
             elif isinstance(key, int):
-                # Input handling in get_string_input using KEYBINDINGS
-                if key in KEYBINDINGS.get("BACKSPACE", []) :
+                # Input handling in get_string_input using new KEYBINDINGS structure
+                if key in KEYBINDINGS.get("BACKSPACE", {}).get("keys", []):
                     if current_pos > 0:
                         result = result[:current_pos-1] + result[current_pos:]
                         current_pos -= 1
-                elif key == KEYBINDINGS.get("DELETE_CHAR"): # Using DELETE_CHAR for single char deletion
+                elif key == KEYBINDINGS.get("DELETE_CHAR", {}).get("keys"):
                     if current_pos < len(result):
                         result = result[:current_pos] + result[current_pos+1:]
-                elif key == KEYBINDINGS.get("NAVIGATE_LEFT") and current_pos > 0:
+                elif key == KEYBINDINGS.get("NAVIGATE_LEFT", {}).get("keys") and current_pos > 0:
                     current_pos -= 1
-                elif key == KEYBINDINGS.get("NAVIGATE_RIGHT") and current_pos < len(result):
+                elif key == KEYBINDINGS.get("NAVIGATE_RIGHT", {}).get("keys") and current_pos < len(result):
                     current_pos += 1
-                elif key == KEYBINDINGS.get("HOME"):
+                elif key == KEYBINDINGS.get("HOME", {}).get("keys"):
                     current_pos = 0
-                elif key == KEYBINDINGS.get("END"):
+                elif key == KEYBINDINGS.get("END", {}).get("keys"):
                     current_pos = len(result)
-                elif key == KEYBINDINGS.get("PASTE_FROM_BUFFER"):
+                elif key == KEYBINDINGS.get("PASTE_FROM_BUFFER", {}).get("keys"):
                     try:
                         clip = pyperclip.paste()
                         if clip:
@@ -305,9 +416,10 @@ class BaseWindow:
         target_keys = None
         if allowed_actions is not None:
             target_keys = []
-            for action in allowed_actions:
-                bound_keys = KEYBINDINGS.get(action)
-                if bound_keys:
+                for action_name in allowed_actions: # allowed_actions are names like "SELECT"
+                    action_info = KEYBINDINGS.get(action_name)
+                    if action_info and "keys" in action_info:
+                        bound_keys = action_info["keys"]
                     if isinstance(bound_keys, list):
                         target_keys.extend(bound_keys)
                     else:
