@@ -416,10 +416,10 @@ class BaseWindow:
         target_keys = None
         if allowed_actions is not None:
             target_keys = []
-                for action_name in allowed_actions: # allowed_actions are names like "SELECT"
-                    action_info = KEYBINDINGS.get(action_name)
-                    if action_info and "keys" in action_info:
-                        bound_keys = action_info["keys"]
+            for action_name in allowed_actions: # Corrected line, forced rewrite via comment.
+                action_info = KEYBINDINGS.get(action_name)
+                if action_info and "keys" in action_info:
+                    bound_keys = action_info["keys"]
                     if isinstance(bound_keys, list):
                         target_keys.extend(bound_keys)
                     else:
@@ -429,7 +429,6 @@ class BaseWindow:
                 # Decide behavior: either allow all, or allow none (block until valid key for *something*).
                 # For now, let's stick to allowing any key if the list ends up empty.
                 pass
-
 
         while True:
             key = self.stdscr.getch() # Consider get_wch() for wider compatibility if issues arise

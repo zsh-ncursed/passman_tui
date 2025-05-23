@@ -75,10 +75,14 @@ On first launch, you will be prompted to create a master password, which will be
 
 ### Navigation
 
-- Use arrow keys `↑↓` to navigate menus
-- `Enter` to select menu item
-- `Esc` to go back
-- `c` to copy information to clipboard
+The Text User Interface (TUI) provides context-specific keybindings that are dynamically displayed in the footer of each screen. This ensures that you always have the relevant commands visible for the current view or task.
+
+Common global keys that are generally available:
+- Arrow keys (`↑`, `↓`, `←`, `→`): Used for navigating through menus, lists, and sometimes for adjusting values in settings.
+- `Enter`: Used for selecting menu items, confirming actions, or proceeding to the next step.
+- `Esc`: Used for backing out of menus, canceling current operations, or closing dialogs.
+
+Common actions like Copy, Generate, Settings, Save, Edit, Delete, etc., will have their respective hotkeys (e.g., `[c]`, `[g]`, `[S]`, `[s]`) displayed in the footer when they are available in the current context. Always refer to the footer for the most up-to-date keybindings for your current screen.
 
 ## Security
 
