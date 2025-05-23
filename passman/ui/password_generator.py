@@ -85,11 +85,11 @@ class PasswordGeneratorWindow(BaseWindow):
             
             if self.config_mode:
                 # Configuration Mode
-                if key == KEYBINDINGS["NAVIGATE_UP"] and self.config_index > 0:
+                if key == KEYBINDINGS["NAVIGATE_UP"]["keys"] and self.config_index > 0:
                     self.config_index -= 1
-                elif key == KEYBINDINGS["NAVIGATE_DOWN"] and self.config_index < len(self.config_items) - 1:
+                elif key == KEYBINDINGS["NAVIGATE_DOWN"]["keys"] and self.config_index < len(self.config_items) - 1:
                     self.config_index += 1
-                elif key in KEYBINDINGS["SELECT"]:
+                elif key in KEYBINDINGS["SELECT"]["keys"]:
                     if self.config_index == 5:  # Generate Password
                         self.generate_password()
                         self.config_mode = False
@@ -105,26 +105,26 @@ class PasswordGeneratorWindow(BaseWindow):
                             attr_name = attribute_names[self.config_index - 1]
                             setattr(self, attr_name, not getattr(self, attr_name))
                             self.update_config_items()
-                elif key in KEYBINDINGS["BACK_CANCEL"]:
+                elif key in KEYBINDINGS["BACK_CANCEL"]["keys"]:
                     self.config_mode = False
-                elif key == KEYBINDINGS["NAVIGATE_LEFT"] and self.config_index == 0:  # Decrease password length
+                elif key == KEYBINDINGS["NAVIGATE_LEFT"]["keys"] and self.config_index == 0:  # Decrease password length
                     if self.password_length > 4: # Assuming min length 4
                         self.password_length -= 1
                         self.update_config_items()
-                elif key == KEYBINDINGS["NAVIGATE_RIGHT"] and self.config_index == 0:  # Increase password length
+                elif key == KEYBINDINGS["NAVIGATE_RIGHT"]["keys"] and self.config_index == 0:  # Increase password length
                     if self.password_length < 64: # Assuming max length 64
                         self.password_length += 1
                         self.update_config_items()
             else:
                 # Main display mode
-                if key == KEYBINDINGS["COPY"]:
+                if key == KEYBINDINGS["COPY"]["keys"]:
                     return self.password # Return the password string to be copied by the caller
-                elif key == KEYBINDINGS["GENERATE"]:
+                elif key == KEYBINDINGS["GENERATE"]["keys"]:
                     self.generate_password()
-                elif key == KEYBINDINGS["SETTINGS"]:
+                elif key == KEYBINDINGS["SETTINGS"]["keys"]:
                     self.config_mode = True
                     self.config_index = 0 # Reset config index when entering settings
-                elif key in KEYBINDINGS["BACK_CANCEL"]:
+                elif key in KEYBINDINGS["BACK_CANCEL"]["keys"]:
                     return None # Exit window
             
             # Handle terminal resize

@@ -31,16 +31,16 @@ class MainMenu(BaseWindow):
             key = self.stdscr.getch()
             
             # Navigation
-            if key == KEYBINDINGS["NAVIGATE_UP"] and self.selected_index > 0:
+            if key == KEYBINDINGS["NAVIGATE_UP"]["keys"] and self.selected_index > 0:
                 self.selected_index -= 1
-            elif key == KEYBINDINGS["NAVIGATE_DOWN"] and self.selected_index < len(self.menu_items) - 1:
+            elif key == KEYBINDINGS["NAVIGATE_DOWN"]["keys"] and self.selected_index < len(self.menu_items) - 1:
                 self.selected_index += 1
             # Select item
-            elif key in KEYBINDINGS["SELECT"]:
+            elif key in KEYBINDINGS["SELECT"]["keys"]:
                 return self.selected_index
             # Exit (mapped to BACK_CANCEL as per typical UI, or could be a specific EXIT action)
             # For main menu, Esc usually means "Exit Application" which is the last item.
-            elif key in KEYBINDINGS["BACK_CANCEL"]: 
+            elif key in KEYBINDINGS["BACK_CANCEL"]["keys"]: 
                 # In this specific menu, "Exit" is an explicit option.
                 # Pressing Esc should probably select "Exit" or perform its action directly.
                 # Current behavior: return index of "Exit" item. This seems fine.

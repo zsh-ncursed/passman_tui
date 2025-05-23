@@ -36,16 +36,16 @@ class AddEntryWindow(BaseWindow):
             self.refresh()
             
             key = self.stdscr.getch()
-            if key == KEYBINDINGS["GENERATE"]:
+            if key == KEYBINDINGS["GENERATE"]["keys"]:
                 password = self.password_generator.generate_password()
                 # self.stdscr.addstr(7, 2 + len("Password: ") + len(password), "") # Clear potential old text, handled by clrtoeol
                 continue
-            elif key in KEYBINDINGS["SELECT"]:
+            elif key in KEYBINDINGS["SELECT"]["keys"]:
                 if password: # Require a password to save
                     break
-            elif key in KEYBINDINGS["BACK_CANCEL"]:
+            elif key in KEYBINDINGS["BACK_CANCEL"]["keys"]:
                 return None
-            elif key in KEYBINDINGS["BACKSPACE"]:
+            elif key in KEYBINDINGS["BACKSPACE"]["keys"]:
                 password = password[:-1]
             elif 32 <= key <= 126:  # Printable characters
                 # TODO: This part could also use get_string_input for consistency,
@@ -107,21 +107,21 @@ class ViewEntriesWindow(BaseWindow):
             key = self.stdscr.getch()
             
             # Navigation
-            if key == KEYBINDINGS["NAVIGATE_UP"]:
+            if key == KEYBINDINGS["NAVIGATE_UP"]["keys"]:
                 if self.selected_index > 0:
                     self.selected_index -= 1
                     if self.selected_index < self.offset:
                         self.offset = self.selected_index
-            elif key == KEYBINDINGS["NAVIGATE_DOWN"]:
+            elif key == KEYBINDINGS["NAVIGATE_DOWN"]["keys"]:
                 if self.selected_index < len(self.entries) - 1:
                     self.selected_index += 1
                     if self.selected_index >= self.offset + self.items_per_page:
                         self.offset += 1
             # Select record
-            elif key in KEYBINDINGS["SELECT"]:
+            elif key in KEYBINDINGS["SELECT"]["keys"]:
                 return self.selected_index
             # Exit
-            elif key in KEYBINDINGS["BACK_CANCEL"]:
+            elif key in KEYBINDINGS["BACK_CANCEL"]["keys"]:
                 return None
             # Handle terminal size change
             elif key == curses.KEY_RESIZE:
@@ -185,30 +185,30 @@ class EntryDetailsWindow(BaseWindow):
             key = self.stdscr.getch()
             
             # Navigation for the menu items
-            if key == KEYBINDINGS["NAVIGATE_UP"] and self.selected_index > 0:
+            if key == KEYBINDINGS["NAVIGATE_UP"]["keys"] and self.selected_index > 0:
                 self.selected_index -= 1
-            elif key == KEYBINDINGS["NAVIGATE_DOWN"] and self.selected_index < len(self.menu_items) - 1:
+            elif key == KEYBINDINGS["NAVIGATE_DOWN"]["keys"] and self.selected_index < len(self.menu_items) - 1:
                 self.selected_index += 1
             # Select item from menu
-            elif key in KEYBINDINGS["SELECT"]:
+            elif key in KEYBINDINGS["SELECT"]["keys"]:
                 return self.selected_index # This corresponds to actions like "Edit", "Delete", "Back"
             # Back / Cancel action
-            elif key in KEYBINDINGS["BACK_CANCEL"]:
+            elif key in KEYBINDINGS["BACK_CANCEL"]["keys"]:
                 # Typically "Back" is the last item in such menus.
                 return len(self.menu_items) - 1 
             # Quick actions
-            elif key == KEYBINDINGS["COPY_USERNAME"]:
+            elif key == KEYBINDINGS["COPY_USERNAME"]["keys"]:
                 # Corresponds to "Copy login" menu item at index 0
                 return 0 
-            elif key == KEYBINDINGS["COPY_PASSWORD"]:
+            elif key == KEYBINDINGS["COPY_PASSWORD"]["keys"]:
                 # Corresponds to "Copy password" menu item at index 1
                 return 1
-            elif key == KEYBINDINGS["COPY_NOTE"]:
+            elif key == KEYBINDINGS["COPY_NOTE"]["keys"]:
                 # Corresponds to "Copy note" menu item at index 2
                 # This was previously ord('n'), which now maps to COPY_NOTE.
                 # Ensure KEYBINDINGS["NEW"] (also ord('n')) isn't active here if it's for creating new entries globally.
                 return 2
-            elif key == KEYBINDINGS["SHOW_HIDE"]:
+            elif key == KEYBINDINGS["SHOW_HIDE"]["keys"]:
                 self.show_hidden = not self.show_hidden
             # Handle terminal size change
             elif key == curses.KEY_RESIZE:
@@ -267,13 +267,13 @@ class EditEntryWindow(BaseWindow):
             # Input handling
             key = self.stdscr.getch()
             
-            if key == KEYBINDINGS["NAVIGATE_UP"] and self.selected_index > 0:
+            if key == KEYBINDINGS["NAVIGATE_UP"]["keys"] and self.selected_index > 0:
                 self.selected_index -= 1
-            elif key == KEYBINDINGS["NAVIGATE_DOWN"] and self.selected_index < len(self.fields) - 1:
+            elif key == KEYBINDINGS["NAVIGATE_DOWN"]["keys"] and self.selected_index < len(self.fields) - 1:
                 self.selected_index += 1
-            elif key in KEYBINDINGS["BACK_CANCEL"]:
+            elif key in KEYBINDINGS["BACK_CANCEL"]["keys"]:
                 return None # Cancel editing
-            elif key in KEYBINDINGS["SELECT"]:
+            elif key in KEYBINDINGS["SELECT"]["keys"]:
                 if self.fields[self.selected_index] == "Save":
                     return self.entry
                 elif self.fields[self.selected_index] == "Cancel":
@@ -281,7 +281,7 @@ class EditEntryWindow(BaseWindow):
                 else:
                     # This will call edit_field for "Service name", "Username", "Password", "Note"
                     self.edit_field(self.selected_index) 
-            elif key == KEYBINDINGS["GENERATE"] and self.fields[self.selected_index] == "Password":
+            elif key == KEYBINDINGS["GENERATE"]["keys"] and self.fields[self.selected_index] == "Password":
                 self.entry['password'] = self.password_generator.generate_password()
                 # No need to call edit_field, password is set directly. Refresh will show it.
             
@@ -344,31 +344,31 @@ class EditEntryWindow(BaseWindow):
                 
                 key = self.stdscr.getch() # Consider get_wch for unicode if issues
                 
-                if key == KEYBINDINGS["SHOW_HIDE"]:
+                if key == KEYBINDINGS["SHOW_HIDE"]["keys"]:
                     show_password = not show_password
-                elif key == KEYBINDINGS["GENERATE"]:
+                elif key == KEYBINDINGS["GENERATE"]["keys"]:
                     input_value = self.password_generator.generate_password()
                     cursor_pos = len(input_value)
-                elif key in KEYBINDINGS["BACK_CANCEL"]:
+                elif key in KEYBINDINGS["BACK_CANCEL"]["keys"]:
                     return # Cancel editing this field
-                elif key in KEYBINDINGS["SELECT"]: # Using SELECT for save, consistent with get_string_input
+                elif key in KEYBINDINGS["SELECT"]["keys"]: # Using SELECT for save, consistent with get_string_input
                     if input_value: # Only save if not empty, or allow empty? Current: must not be empty.
                         self.entry[field_map[field_name]] = input_value
                     return # Finish editing this field
-                elif key in KEYBINDINGS["BACKSPACE"]:
+                elif key in KEYBINDINGS["BACKSPACE"]["keys"]:
                     if cursor_pos > 0:
                         input_value = input_value[:cursor_pos-1] + input_value[cursor_pos:]
                         cursor_pos -= 1
-                elif key == KEYBINDINGS["DELETE_CHAR"]:
+                elif key == KEYBINDINGS["DELETE_CHAR"]["keys"]:
                     if cursor_pos < len(input_value):
                         input_value = input_value[:cursor_pos] + input_value[cursor_pos+1:]
-                elif key == KEYBINDINGS["NAVIGATE_LEFT"] and cursor_pos > 0:
+                elif key == KEYBINDINGS["NAVIGATE_LEFT"]["keys"] and cursor_pos > 0:
                     cursor_pos -= 1
-                elif key == KEYBINDINGS["NAVIGATE_RIGHT"] and cursor_pos < len(input_value):
+                elif key == KEYBINDINGS["NAVIGATE_RIGHT"]["keys"] and cursor_pos < len(input_value):
                     cursor_pos += 1
-                elif key == KEYBINDINGS["HOME"]:
+                elif key == KEYBINDINGS["HOME"]["keys"]:
                     cursor_pos = 0
-                elif key == KEYBINDINGS["END"]:
+                elif key == KEYBINDINGS["END"]["keys"]:
                     cursor_pos = len(input_value)
                 elif 32 <= key <= 126 and len(input_value) < 256:  # Printable characters, increased limit
                     input_value = input_value[:cursor_pos] + chr(key) + input_value[cursor_pos:]
@@ -401,30 +401,30 @@ class EditEntryWindow(BaseWindow):
                 ])
                 key = self.stdscr.getch() # Consider get_wch
 
-                if key == KEYBINDINGS["SHOW_HIDE"]:
+                if key == KEYBINDINGS["SHOW_HIDE"]["keys"]:
                     show_note = not show_note # This toggles the "Current note" display, not input
-                elif key in KEYBINDINGS["BACK_CANCEL"]:
+                elif key in KEYBINDINGS["BACK_CANCEL"]["keys"]:
                     return # Cancel editing this field
-                elif key in KEYBINDINGS["SELECT"]: # Save
+                elif key in KEYBINDINGS["SELECT"]["keys"]: # Save
                     words = re.findall(r'\S+', value)
                     if len(words) > 50: # Word limit
                         value = ' '.join(words[:50])
                     self.entry[field_map[field_name]] = value
                     return # Finish editing
-                elif key in KEYBINDINGS["BACKSPACE"]:
+                elif key in KEYBINDINGS["BACKSPACE"]["keys"]:
                     if cursor_pos > 0:
                         value = value[:cursor_pos-1] + value[cursor_pos:]
                         cursor_pos -= 1
-                elif key == KEYBINDINGS["DELETE_CHAR"]:
+                elif key == KEYBINDINGS["DELETE_CHAR"]["keys"]:
                     if cursor_pos < len(value):
                         value = value[:cursor_pos] + value[cursor_pos+1:]
-                elif key == KEYBINDINGS["NAVIGATE_LEFT"] and cursor_pos > 0:
+                elif key == KEYBINDINGS["NAVIGATE_LEFT"]["keys"] and cursor_pos > 0:
                     cursor_pos -= 1
-                elif key == KEYBINDINGS["NAVIGATE_RIGHT"] and cursor_pos < len(value):
+                elif key == KEYBINDINGS["NAVIGATE_RIGHT"]["keys"] and cursor_pos < len(value):
                     cursor_pos += 1
-                elif key == KEYBINDINGS["HOME"]:
+                elif key == KEYBINDINGS["HOME"]["keys"]:
                     cursor_pos = 0
-                elif key == KEYBINDINGS["END"]:
+                elif key == KEYBINDINGS["END"]["keys"]:
                     cursor_pos = len(value)
                 # Allow any printable char, including spaces. Max length for notes is implicitly handled by screen width or later by get_string_input if used.
                 # Max words check is only on save.
