@@ -14,7 +14,7 @@ from .ui.password_entry import AddEntryWindow, ViewEntriesWindow, EntryDetailsWi
 from .ui.password_generator import PasswordGeneratorWindow
 from .ui.settings import SettingsWindow
 from . import __version__
-from .ui.base import BaseWindow
+from .ui.base import BaseWindow, KEYBINDINGS
 
 
 class PasswordManager:
@@ -93,17 +93,19 @@ class PasswordManager:
             while True:
                 window.clear()
                 window.draw_header("First run - setting master password")
-                window.draw_footer(["[Enter] - Save", "[Esc] - Exit"])
+                window.draw_footer(["SAVE", "BACK_CANCEL"]) # Use action names
                 password = window.get_string_input("Enter master password: ", 3, 2, mask=True)
-                if not password:
+                if not password: # User likely pressed Esc in get_string_input
                     return False
                 confirm = window.get_string_input("Confirm password: ", 5, 2, mask=True)
-                if not confirm:
+                if not confirm: # User likely pressed Esc in get_string_input
                     return False
                 if password != confirm:
                     window.draw_message("Passwords do not match", window.height // 2, None, 4)
                     window.refresh()
-                    window.wait_for_key([10, 13, 27])
+                    key_after_error = window.wait_for_key(["SELECT", "BACK_CANCEL"])
+                    if key_after_error in KEYBINDINGS["BACK_CANCEL"]["keys"]:
+                        return False # Exit authentication if Esc is pressed
                     continue
                 self.settings['master_password'] = password
                 self.save_settings()
@@ -112,9 +114,9 @@ class PasswordManager:
             while True:
                 window.clear()
                 window.draw_header("Login to password manager")
-                window.draw_footer(["[Enter] - Login", "[Esc] - Exit"])
+                window.draw_footer(["SELECT", "BACK_CANCEL"]) # Use action names ("SELECT" for Login)
                 password = window.get_string_input("Enter master password: ", 3, 2, mask=True)
-                if not password:
+                if not password: # User likely pressed Esc in get_string_input
                     return False
                 # Try to decrypt settings with this password
                 try:
@@ -128,7 +130,9 @@ class PasswordManager:
                     pass
                 window.draw_message("Invalid password", window.height // 2, None, 4)
                 window.refresh()
-                window.wait_for_key([10, 13, 27])
+                key_after_error = window.wait_for_key(["SELECT", "BACK_CANCEL"])
+                if key_after_error in KEYBINDINGS["BACK_CANCEL"]["keys"]:
+                    return False # Exit authentication if Esc is pressed
     
     def load_data(self):
         """Load data from file"""
