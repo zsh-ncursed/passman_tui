@@ -211,14 +211,19 @@ class PasswordManager:
                     self.entries[selected_index]['password'],
                     clear_after=self.settings.get('clipboard_clear_time', 30)
                 )
-            elif details_choice == 2:  # Edit entry
+            elif details_choice == 2:  # Copy note
+                clipboard_manager.copy_to_clipboard(
+                    self.entries[selected_index].get('note', ''),
+                    clear_after=self.settings.get('clipboard_clear_time', 30)
+                )
+            elif details_choice == 3:  # Edit entry
                 edit_window = EditEntryWindow(stdscr, self.entries[selected_index])
                 updated_entry = edit_window.display()
                 
                 if updated_entry:
                     self.entries[selected_index] = updated_entry
                     self.save_data()
-            elif details_choice == 3:  # Delete entry
+            elif details_choice == 4:  # Delete entry
                 # Create base window for entry deletion confirmation
                 from .ui.base import BaseWindow
                 window = BaseWindow(stdscr)

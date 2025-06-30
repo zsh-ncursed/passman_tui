@@ -55,36 +55,39 @@ class PasswordGeneratorWindow(BaseWindow):
             return False
     
     def display(self):
-        """Display Password Generator Window"""
-        # Generate password on first display
+        """Display Password Generator Window (optimized redraw)"""
         if not self.password:
             self.generate_password()
-        
+        prev_config_index = -1
+        prev_config_mode = None
+        prev_password = None
+        prev_size = (self.height, self.width)
+        dirty = True
         while True:
-            self.clear()
-            self.draw_header("Password Generator")
-            
-            if self.config_mode:
-                self.draw_footer(["[↑↓] - Navigation", "[Enter] - Select", "[Esc] - Back", "[←→] - Change"])
-                self.draw_menu(self.config_items, self.config_index)
-            else:
-                self.draw_footer(["[c] - Copy", "[g] - New Password", "[s] - Settings", "[Esc] - Back"])
-                
-                # Display generated password
-                if self.password:
-                    password_msg = f"Generated Password: {self.password}"
-                    self.draw_message(password_msg, self.height // 2 - 1, None, 3)
-                    copy_msg = "Press 'c' to copy password to clipboard"
-                    self.draw_message(copy_msg, self.height // 2 + 1, None, 6)
+            if dirty or self.config_index != prev_config_index or self.config_mode != prev_config_mode or self.password != prev_password or (self.height, self.width) != prev_size:
+                self.clear()
+                self.draw_header("Password Generator")
+                if self.config_mode:
+                    self.draw_footer(["[↑↓] - Navigation", "[Enter] - Select", "[Esc] - Back", "[←→] - Change"])
+                    self.draw_menu(self.config_items, self.config_index)
                 else:
-                    error_msg = f"Password Generation Error: {self.error_message}"
-                    self.draw_message(error_msg, self.height // 2, None, 4)
-            
-            # Input Handling
+                    self.draw_footer(["[c] - Copy", "[g] - New Password", "[s] - Settings", "[Esc] - Back"])
+                    if self.password:
+                        password_msg = f"Generated Password: {self.password}"
+                        self.draw_message(password_msg, self.height // 2 - 1, None, 3)
+                        copy_msg = "Press 'c' to copy password to clipboard"
+                        self.draw_message(copy_msg, self.height // 2 + 1, None, 6)
+                    else:
+                        error_msg = f"Password Generation Error: {self.error_message}"
+                        self.draw_message(error_msg, self.height // 2, None, 4)
+                self.refresh()
+                prev_config_index = self.config_index
+                prev_config_mode = self.config_mode
+                prev_password = self.password
+                prev_size = (self.height, self.width)
+                dirty = False
             key = self.stdscr.getch()
-            
             if self.config_mode:
-                # Configuration Mode
                 if key == curses.KEY_UP and self.config_index > 0:
                     self.config_index -= 1
                 elif key == curses.KEY_DOWN and self.config_index < len(self.config_items) - 1:
@@ -93,40 +96,45 @@ class PasswordGeneratorWindow(BaseWindow):
                     if self.config_index == 5:  # Generate Password
                         self.generate_password()
                         self.config_mode = False
+                        dirty = True
                     elif self.config_index == 6:  # Back
                         self.config_mode = False
+                        dirty = True
                     elif self.config_index == 0:  # Password Length
                         pass  # Handled by left/right keys
                     else:  # Toggle switches
-                        attribute_names = ["include_lowercase", "include_uppercase", 
-                                         "include_digits", "include_special"]
+                        attribute_names = ["include_lowercase", "include_uppercase", "include_digits", "include_special"]
                         attr_name = attribute_names[self.config_index - 1]
                         setattr(self, attr_name, not getattr(self, attr_name))
                         self.update_config_items()
+                        dirty = True
                 elif key == 27:  # Escape
                     self.config_mode = False
-                elif key == curses.KEY_LEFT and self.config_index == 0:  # Decrease password length
+                    dirty = True
+                elif key == curses.KEY_LEFT and self.config_index == 0:
                     if self.password_length > 4:
                         self.password_length -= 1
                         self.update_config_items()
-                elif key == curses.KEY_RIGHT and self.config_index == 0:  # Increase password length
+                        dirty = True
+                elif key == curses.KEY_RIGHT and self.config_index == 0:
                     if self.password_length < 64:
                         self.password_length += 1
                         self.update_config_items()
+                        dirty = True
             else:
-                # Main display mode
-                if key == ord('c'):  # Copy password
+                if key == ord('c'):
                     return self.password
-                elif key == ord('g'):  # Generate new password
+                elif key == ord('g'):
                     self.generate_password()
-                elif key == ord('s'):  # Switch to settings mode
+                    dirty = True
+                elif key == ord('s'):
                     self.config_mode = True
                     self.config_index = 0
-                elif key == 27:  # Escape
+                    dirty = True
+                elif key == 27:
                     return None
-            
-            # Handle terminal resize
             if key == curses.KEY_RESIZE:
                 self.resize()
-                
-            self.refresh() 
+                dirty = True
+            if self.config_index != prev_config_index or self.config_mode != prev_config_mode or self.password != prev_password or (self.height, self.width) != prev_size or dirty:
+                continue 

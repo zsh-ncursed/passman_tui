@@ -129,6 +129,8 @@ class BaseWindow:
         max_length = min(max_length, self.width - x - len(prompt) - 2)
         result = ""
         current_pos = 0
+        prev_display = None
+        prev_cursor = None
         try:
             self.stdscr.addstr(y, x, prompt)
             input_x = x + len(prompt)
@@ -140,14 +142,18 @@ class BaseWindow:
             except:
                 return ""
         while True:
-            try:
-                display = '*' * len(result) if mask else result
-                self.stdscr.addstr(y, input_x, display + " " * (max_length - len(result)))
-                self.stdscr.move(y, input_x + current_pos)
-                if show_footer:
-                    self.draw_footer(["[Enter] - Save", "[Esc] - Cancel", "[F2] - Insert from buffer"])
-            except:
-                pass
+            display = '*' * len(result) if mask else result
+            # Перерисовываем только если изменился ввод или позиция курсора
+            if display != prev_display or current_pos != prev_cursor:
+                try:
+                    self.stdscr.addstr(y, input_x, display + " " * (max_length - len(result)))
+                    self.stdscr.move(y, input_x + current_pos)
+                    if show_footer:
+                        self.draw_footer(["[Enter] - Save", "[Esc] - Cancel", "[F2] - Insert from buffer"])
+                except:
+                    pass
+                prev_display = display
+                prev_cursor = current_pos
             key = self.stdscr.get_wch()  # Use get_wch for Unicode support
             if isinstance(key, str):
                 if key == '\n' or key == '\r':

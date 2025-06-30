@@ -74,32 +74,30 @@ class ViewEntriesWindow(BaseWindow):
         self.items_per_page = self.height - 4  # Consider header and hints
     
     def display(self):
-        """Display view records window"""
+        """Display view records window (optimized redraw)"""
+        prev_selected = -1
+        prev_offset = -1
+        prev_size = (self.height, self.width)
+        dirty = True
         while True:
-            self.clear()
-            self.draw_header("Records list")
-            self.draw_footer(["[↑↓] - Navigation", "[Enter] - Select", "[Esc] - Back"])
-            
-            if not self.entries:
-                self.draw_message("Records list is empty", self.height // 2, None, 5)
-                key = self.wait_for_key([10, 13, 27])  # Enter or Escape
-                return None
-                
-            # Create list for display
-            display_items = []
-            for entry in self.entries:
-                display_items.append(f"{entry['service_name']} ({entry['username']})")
-            
-            # Define visible range
-            visible_items = display_items[self.offset:self.offset+self.items_per_page]
-            
-            # Draw list
-            self.draw_menu(visible_items, self.selected_index - self.offset)
-            
-            # Input handling
+            if dirty or self.selected_index != prev_selected or self.offset != prev_offset or (self.height, self.width) != prev_size:
+                self.clear()
+                self.draw_header("Records list")
+                self.draw_footer(["[↑↓] - Navigation", "[Enter] - Select", "[Esc] - Back"])
+                if not self.entries:
+                    self.draw_message("Records list is empty", self.height // 2, None, 5)
+                    self.refresh()
+                    key = self.wait_for_key([10, 13, 27])  # Enter or Escape
+                    return None
+                display_items = [f"{entry['service_name']} ({entry['username']})" for entry in self.entries]
+                visible_items = display_items[self.offset:self.offset+self.items_per_page]
+                self.draw_menu(visible_items, self.selected_index - self.offset)
+                self.refresh()
+                prev_selected = self.selected_index
+                prev_offset = self.offset
+                prev_size = (self.height, self.width)
+                dirty = False
             key = self.stdscr.getch()
-            
-            # Navigation
             if key == curses.KEY_UP:
                 if self.selected_index > 0:
                     self.selected_index -= 1
@@ -110,18 +108,16 @@ class ViewEntriesWindow(BaseWindow):
                     self.selected_index += 1
                     if self.selected_index >= self.offset + self.items_per_page:
                         self.offset += 1
-            # Select record
             elif key == 10 or key == 13:  # Enter
                 return self.selected_index
-            # Exit
             elif key == 27:  # Escape
                 return None
-            # Handle terminal size change
             elif key == curses.KEY_RESIZE:
                 self.resize()
                 self.items_per_page = self.height - 4
-                
-            self.refresh()
+                dirty = True
+            if self.selected_index != prev_selected or self.offset != prev_offset or dirty:
+                continue
 
 
 class EntryDetailsWindow(BaseWindow):
@@ -143,62 +139,57 @@ class EntryDetailsWindow(BaseWindow):
         self.show_hidden = False
     
     def display(self):
-        """Display record details window"""
+        """Display record details window (optimized redraw)"""
+        prev_selected = -1
+        prev_show_hidden = None
+        prev_size = (self.height, self.width)
+        dirty = True
         while True:
-            self.clear()
-            self.draw_header(f"Details: {self.entry['service_name']}")
-            self.draw_footer(["[V] - Show/hide"])
-            
-            # Display record details
-            self.stdscr.addstr(2, 2, f"Service: {self.entry['service_name']}")
-            self.stdscr.addstr(3, 2, f"Username: {self.entry['username']}")
-            if self.show_hidden:
-                self.stdscr.addstr(4, 2, f"Password: {self.entry['password']}")
-            else:
-                self.stdscr.addstr(4, 2, f"Password: {'*' * len(self.entry['password'])}")
-            
-            # Display note if it exists
-            if self.entry.get('note'):
-                self.stdscr.addstr(5, 2, "Note:")
-                note_display = self.entry['note'] if self.show_hidden else '*' * min(len(self.entry['note']), 30)
-                note_lines = note_display.split('\n')
-                for i, line in enumerate(note_lines[:3]):
-                    self.stdscr.addstr(6 + i, 4, line[:self.width-6])
-            
-            # Draw menu
-            menu_start_y = 10 if self.entry.get('note') else 6
-            self.draw_menu(self.menu_items, self.selected_index, start_y=menu_start_y)
-            
-            # Input handling
+            if dirty or self.selected_index != prev_selected or self.show_hidden != prev_show_hidden or (self.height, self.width) != prev_size:
+                self.clear()
+                self.draw_header(f"Details: {self.entry['service_name']}")
+                self.draw_footer(["[V] - Show/hide"])
+                self.stdscr.addstr(2, 2, f"Service: {self.entry['service_name']}")
+                self.stdscr.addstr(3, 2, f"Username: {self.entry['username']}")
+                if self.show_hidden:
+                    self.stdscr.addstr(4, 2, f"Password: {self.entry['password']}")
+                else:
+                    self.stdscr.addstr(4, 2, f"Password: {'*' * len(self.entry['password'])}")
+                if self.entry.get('note'):
+                    self.stdscr.addstr(5, 2, "Note:")
+                    note_display = self.entry['note'] if self.show_hidden else '*' * min(len(self.entry['note']), 30)
+                    note_lines = note_display.split('\n')
+                    for i, line in enumerate(note_lines[:3]):
+                        self.stdscr.addstr(6 + i, 4, line[:self.width-6])
+                menu_start_y = 10 if self.entry.get('note') else 6
+                self.draw_menu(self.menu_items, self.selected_index, start_y=menu_start_y)
+                self.refresh()
+                prev_selected = self.selected_index
+                prev_show_hidden = self.show_hidden
+                prev_size = (self.height, self.width)
+                dirty = False
             key = self.stdscr.getch()
-            
-            # Navigation
             if key == curses.KEY_UP and self.selected_index > 0:
                 self.selected_index -= 1
             elif key == curses.KEY_DOWN and self.selected_index < len(self.menu_items) - 1:
                 self.selected_index += 1
-            # Select item
             elif key == 10 or key == 13:  # Enter
                 return self.selected_index
-            # Exit
             elif key == 27:  # Escape
                 return len(self.menu_items) - 1  # Return selected item index
-            # Quick copy
             elif key in [ord('l'), ord('L')]:
-                # Copy login
                 return 0
             elif key in [ord('p'), ord('P')]:
-                # Copy password
                 return 1
             elif key in [ord('n'), ord('N')]:
                 return 2
             elif key in [ord('v'), ord('V')]:
                 self.show_hidden = not self.show_hidden
-            # Handle terminal size change
             elif key == curses.KEY_RESIZE:
                 self.resize()
-                
-            self.refresh()
+                dirty = True
+            if self.selected_index != prev_selected or self.show_hidden != prev_show_hidden or dirty:
+                continue
 
 
 class EditEntryWindow(BaseWindow):
@@ -220,35 +211,34 @@ class EditEntryWindow(BaseWindow):
         self.selected_index = 0
         
     def display(self):
-        """Display edit record window"""
+        """Display edit record window (optimized redraw)"""
+        prev_selected = -1
+        prev_size = (self.height, self.width)
+        dirty = True
         while True:
-            self.clear()
-            self.draw_header("Edit record")
-            
-            # Display current values
-            self.stdscr.addstr(2, 2, "Current values:")
-            self.stdscr.addstr(3, 4, f"Service: {self.entry['service_name']}")
-            self.stdscr.addstr(4, 4, f"Username: {self.entry['username']}")
-            self.stdscr.addstr(5, 4, f"Password: {'*' * len(self.entry['password'])}")
-            if self.entry.get('note'):
-                note_preview = self.entry['note'][:30] + '...' if len(self.entry['note']) > 30 else self.entry['note']
-                self.stdscr.addstr(6, 4, f"Note: {note_preview}")
-            else:
-                self.stdscr.addstr(6, 4, "Note: <empty>")
-
-            # Display field selection menu
-            self.stdscr.addstr(8, 2, "Select field to edit:")
-            self.draw_menu(self.fields, self.selected_index, start_y=9)
-            
-            # Show password generation hint if password is selected
-            if self.selected_index == 2:  # Password field index
-                self.draw_footer(["[Enter] - Edit", "[G] - Generate", "[Esc] - Cancel"])
-            else:
-                self.draw_footer(["[Enter] - Edit", "[Esc] - Cancel"])
-            
-            # Input handling
+            if dirty or self.selected_index != prev_selected or (self.height, self.width) != prev_size:
+                self.clear()
+                self.draw_header("Edit record")
+                self.stdscr.addstr(2, 2, "Current values:")
+                self.stdscr.addstr(3, 4, f"Service: {self.entry['service_name']}")
+                self.stdscr.addstr(4, 4, f"Username: {self.entry['username']}")
+                self.stdscr.addstr(5, 4, f"Password: {'*' * len(self.entry['password'])}")
+                if self.entry.get('note'):
+                    note_preview = self.entry['note'][:30] + '...' if len(self.entry['note']) > 30 else self.entry['note']
+                    self.stdscr.addstr(6, 4, f"Note: {note_preview}")
+                else:
+                    self.stdscr.addstr(6, 4, "Note: <empty>")
+                self.stdscr.addstr(8, 2, "Select field to edit:")
+                self.draw_menu(self.fields, self.selected_index, start_y=9)
+                if self.selected_index == 2:  # Password field index
+                    self.draw_footer(["[Enter] - Edit", "[G] - Generate", "[Esc] - Cancel"])
+                else:
+                    self.draw_footer(["[Enter] - Edit", "[Esc] - Cancel"])
+                self.refresh()
+                prev_selected = self.selected_index
+                prev_size = (self.height, self.width)
+                dirty = False
             key = self.stdscr.getch()
-            
             if key == curses.KEY_UP and self.selected_index > 0:
                 self.selected_index -= 1
             elif key == curses.KEY_DOWN and self.selected_index < len(self.fields) - 1:
@@ -262,11 +252,16 @@ class EditEntryWindow(BaseWindow):
                     return None
                 else:
                     self.edit_field(self.selected_index)
+                    dirty = True
             elif (key in [ord('g'), ord('G')]) and self.selected_index == 2:  # Password generation
                 self.entry['password'] = self.password_generator.generate_password()
-            
-            self.refresh()
-    
+                dirty = True
+            elif key == curses.KEY_RESIZE:
+                self.resize()
+                dirty = True
+            if self.selected_index != prev_selected or (self.height, self.width) != prev_size or dirty:
+                continue
+
     def edit_field(self, field_index):
         """Edit selected field"""
         field_name = self.fields[field_index]

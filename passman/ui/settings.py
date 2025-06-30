@@ -28,31 +28,34 @@ class SettingsWindow(BaseWindow):
         ]
     
     def display(self):
-        """Display settings window"""
+        """Display settings window (optimized redraw)"""
+        prev_selected = -1
+        prev_size = (self.height, self.width)
+        prev_menu = list(self.menu_items)
+        dirty = True
         while True:
-            self.clear()
-            self.draw_header("Settings")
-            self.draw_footer([f"Passman v{__version__}", "[↑↓] - Navigation", "[Enter] - Select", "[Esc] - Back", "[←→] - Edit"])
-            
-            # Draw menu
-            self.draw_menu(self.menu_items, self.selected_index)
-            
-            # Input handling
+            if dirty or self.selected_index != prev_selected or (self.height, self.width) != prev_size or self.menu_items != prev_menu:
+                self.clear()
+                self.draw_header("Settings")
+                self.draw_footer([f"Passman v{__version__}", "[↑↓] - Navigation", "[Enter] - Select", "[Esc] - Back", "[←→] - Edit"])
+                self.draw_menu(self.menu_items, self.selected_index)
+                self.refresh()
+                prev_selected = self.selected_index
+                prev_size = (self.height, self.width)
+                prev_menu = list(self.menu_items)
+                dirty = False
             key = self.stdscr.getch()
-            
-            # Navigation
             if key == curses.KEY_UP and self.selected_index > 0:
                 self.selected_index -= 1
             elif key == curses.KEY_DOWN and self.selected_index < len(self.menu_items) - 1:
                 self.selected_index += 1
-            # Select item
             elif key == 10 or key == 13:  # Enter
-                # Item selection handling
                 if self.selected_index == 2:  # Change master password
                     if self.change_master_password():
                         self.draw_message("Master password successfully changed", color_pair=3)
                         self.stdscr.refresh()
                         self.wait_for_key([10, 13, 27])  # Enter or Escape
+                        dirty = True
                 elif self.selected_index == 3:  # Export data
                     return "__EXPORT__"
                 elif self.selected_index == 4:  # Import data
@@ -61,11 +64,8 @@ class SettingsWindow(BaseWindow):
                     return self.settings
                 elif self.selected_index == 6:  # Back
                     return None
-            # Exit
             elif key == 27:  # Escape
                 return None
-            
-            # Edit values using left-right arrows
             elif key == curses.KEY_LEFT:
                 if self.selected_index == 0:  # Encryption algorithm
                     algorithms = ["AES-256", "ChaCha20", "Camellia"]
@@ -73,12 +73,13 @@ class SettingsWindow(BaseWindow):
                     new_index = (current_index - 1) % len(algorithms)
                     self.settings["encryption_algorithm"] = algorithms[new_index]
                     self.update_menu_items()
+                    dirty = True
                 elif self.selected_index == 1:  # Clipboard clear time
                     clear_time = self.settings.get("clipboard_clear_time", 30)
                     if clear_time > 0:
                         self.settings["clipboard_clear_time"] = clear_time - 5
                     self.update_menu_items()
-            
+                    dirty = True
             elif key == curses.KEY_RIGHT:
                 if self.selected_index == 0:  # Encryption algorithm
                     algorithms = ["AES-256", "ChaCha20", "Camellia"]
@@ -86,17 +87,18 @@ class SettingsWindow(BaseWindow):
                     new_index = (current_index + 1) % len(algorithms)
                     self.settings["encryption_algorithm"] = algorithms[new_index]
                     self.update_menu_items()
+                    dirty = True
                 elif self.selected_index == 1:  # Clipboard clear time
                     clear_time = self.settings.get("clipboard_clear_time", 30)
                     if clear_time < 60:
                         self.settings["clipboard_clear_time"] = clear_time + 5
                     self.update_menu_items()
-            
-            # Handle terminal resize
+                    dirty = True
             elif key == curses.KEY_RESIZE:
                 self.resize()
-                
-            self.refresh()
+                dirty = True
+            if self.selected_index != prev_selected or (self.height, self.width) != prev_size or self.menu_items != prev_menu or dirty:
+                continue
     
     def change_master_password(self):
         """Change master password"""
