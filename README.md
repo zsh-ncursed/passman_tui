@@ -4,7 +4,7 @@ A secure and convenient application for password management with a text user int
 
 ## Version
 
-Current version: 1.0.0
+Current version: 1.0.2
 
 ## Features
 
